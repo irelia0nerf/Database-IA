@@ -1,0 +1,3044 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>FoundLab · REX Guard — Infraestrutura Auditável de GenAI Regulada</title>
+<meta name="description" content="Documento técnico em camadas sobre a arquitetura, segurança, conformidade e integração do REX Guard." />
+<meta name="theme-color" content="#FBF8F1" />
+<meta name="robots" content="noindex, nofollow" />
+<meta name="googlebot" content="noindex, nofollow" />
+
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%23FBF8F1'/><g transform='translate(16 16) rotate(45)' fill='%23B89460'><rect x='-7' y='-7' width='14' height='14'/></g><g transform='translate(16 16) rotate(45)' fill='%231A2440'><rect x='-3' y='-3' width='6' height='6'/></g></svg>" />
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400;1,500&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    --paper: #FBF8F1;
+    --paper-2: #F5F0E3;
+    --paper-3: #EFE8D7;
+    --paper-shadow: #E8DFC8;
+
+    --ink: #1A2440;
+    --ink-soft: #2A3556;
+    --ink-muted: #5A6480;
+    --ink-faint: #8B92A8;
+    --ink-ghost: #B5BBC8;
+
+    --gold: #B89460;
+    --gold-dim: #8E7244;
+    --gold-bright: #C9A876;
+    --gold-pale: #E8D9B8;
+
+    --hairline: #D5CFC0;
+    --hairline-strong: #B8B0A0;
+
+    --green: #5B7F5E;
+    --amber: #B8924E;
+    --slate: #4A5878;
+    --plum: #6B4768;
+
+    --max-prose: 720px;
+    --max-wide: 1040px;
+
+    --display: "Playfair Display", "Times New Roman", Georgia, serif;
+    --serif: "Cormorant Garamond", "Iowan Old Style", Georgia, serif;
+    --mono: "JetBrains Mono", ui-monospace, "SF Mono", Consolas, monospace;
+
+    --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+    --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { background: var(--paper); color: var(--ink); }
+  html { scroll-behavior: smooth; scroll-padding-top: 32px; }
+  body {
+    margin: 0;
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: 19px;
+    line-height: 1.7;
+    font-feature-settings: "kern", "liga", "onum";
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    background-image:
+      radial-gradient(1200px 600px at 90% 5%, rgba(184,148,96,0.05), transparent 60%),
+      radial-gradient(900px 500px at 5% 30%, rgba(26,36,64,0.025), transparent 60%);
+  }
+
+  ::selection { background: var(--gold-pale); color: var(--ink); }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: var(--paper); }
+  ::-webkit-scrollbar-thumb { background: var(--hairline-strong); }
+  ::-webkit-scrollbar-thumb:hover { background: var(--ink-faint); }
+
+  .skip {
+    position: absolute;
+    top: -40px;
+    left: 16px;
+    background: var(--ink);
+    color: var(--paper);
+    padding: 8px 14px;
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    z-index: 100;
+    transition: top 200ms var(--ease);
+    text-decoration: none;
+  }
+  .skip:focus { top: 16px; }
+  :focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+  button, a { font: inherit; }
+
+  /* ============================================================ */
+  /* PROGRESS RAIL                                                 */
+  /* ============================================================ */
+  .progress {
+    position: fixed; top: 0; left: 0;
+    height: 100vh; width: 2px;
+    background: var(--hairline);
+    z-index: 50; pointer-events: none;
+  }
+  .progress__bar {
+    position: absolute; top: 0; left: 0;
+    width: 100%; height: 0%;
+    background: linear-gradient(180deg, var(--gold) 0%, var(--gold-dim) 100%);
+    transition: height 80ms linear;
+  }
+  .progress__ticks { position: absolute; inset: 0; pointer-events: none; }
+  .progress__tick {
+    position: absolute; left: -3px;
+    width: 8px; height: 1px;
+    background: var(--hairline-strong);
+  }
+
+  /* ============================================================ */
+  /* SUMÁRIO LATERAL                                               */
+  /* ============================================================ */
+  .sumario {
+    position: fixed; top: 32px; left: 36px;
+    z-index: 40; max-width: 240px;
+    font-family: var(--mono);
+    user-select: none;
+    transition: opacity 400ms var(--ease);
+  }
+  .sumario__atual {
+    font-size: 11px; letter-spacing: 0.22em;
+    text-transform: uppercase; color: var(--ink-muted);
+    display: flex; align-items: baseline; gap: 14px;
+    margin-bottom: 24px;
+  }
+  .sumario__atual-num {
+    color: var(--gold); font-size: 11px;
+    letter-spacing: 0.32em; font-weight: 700;
+  }
+  .sumario__atual-titulo { color: var(--ink); letter-spacing: 0.14em; }
+  .sumario__lista {
+    list-style: none; margin: 0; padding: 0 0 0 14px;
+    border-left: 1px solid var(--hairline);
+    opacity: 0; transform: translateX(-4px);
+    transition: opacity 500ms var(--ease), transform 500ms var(--ease);
+    max-height: calc(100vh - 140px);
+    overflow-y: auto; scrollbar-width: thin;
+  }
+  .sumario.is-aberto .sumario__lista { opacity: 1; transform: translateX(0); }
+  .sumario__lista li { margin: 0; padding: 0; }
+  .sumario__link {
+    display: block; padding: 5px 0 5px 10px;
+    margin-left: -1px;
+    border-left: 1px solid transparent;
+    font-size: 10px; letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    text-decoration: none;
+    transition: color 200ms var(--ease), border-color 200ms var(--ease);
+    line-height: 1.5;
+  }
+  .sumario__link:hover { color: var(--ink); border-left-color: var(--ink-ghost); }
+  .sumario__link.is-ativo {
+    color: var(--gold-dim);
+    border-left-color: var(--gold);
+    font-weight: 500;
+  }
+  .sumario__link-num {
+    color: var(--ink-ghost); margin-right: 10px;
+    display: inline-block; width: 22px;
+  }
+  .sumario__link.is-ativo .sumario__link-num { color: var(--gold); }
+
+  .canto {
+    position: fixed; top: 28px; right: 36px;
+    z-index: 45; display: flex; gap: 24px;
+    font-family: var(--mono); font-size: 11px;
+    letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--ink-muted); user-select: none;
+  }
+  .canto__btn {
+    background: none; border: none;
+    color: var(--ink-soft); cursor: pointer;
+    padding: 6px 0;
+    transition: color 200ms var(--ease);
+    letter-spacing: inherit;
+  }
+  .canto__btn:hover { color: var(--gold-dim); }
+  .canto__kbd { color: var(--ink-ghost); margin-left: 6px; font-size: 10px; }
+
+  .wrap { max-width: var(--max-prose); margin: 0 auto; padding: 0 28px; }
+  .wrap-wide { max-width: var(--max-wide); margin: 0 auto; padding: 0 28px; }
+
+  /* ============================================================ */
+  /* ABERTURA                                                      */
+  /* ============================================================ */
+  .abertura {
+    min-height: 100vh;
+    display: flex; flex-direction: column;
+    justify-content: space-between;
+    padding: 56px 36px 48px;
+    border-bottom: 1px solid var(--hairline);
+    position: relative; text-align: center;
+  }
+  .abertura__topo {
+    display: flex; justify-content: space-between;
+    align-items: baseline;
+    font-family: var(--mono); font-size: 11px;
+    letter-spacing: 0.22em; text-transform: uppercase;
+    color: var(--ink-muted); text-align: left;
+  }
+  .abertura__topo span:last-child { color: var(--ink-faint); }
+  .abertura__centro { max-width: 880px; margin: auto; padding: 60px 0; }
+
+  .ornamento {
+    display: flex; align-items: center;
+    justify-content: center; gap: 18px;
+    margin: 0 auto 56px; width: fit-content;
+  }
+  .ornamento__linha { width: 80px; height: 1px; background: var(--gold); }
+  .ornamento__diamante {
+    width: 6px; height: 6px;
+    transform: rotate(45deg); background: var(--gold);
+  }
+
+  .abertura__epigrafe {
+    font-family: var(--serif); font-style: italic;
+    font-weight: 400;
+    font-size: clamp(18px, 1.4vw, 21px);
+    line-height: 1.55; color: var(--ink-soft);
+    max-width: 720px; margin: 0 auto 12px;
+    letter-spacing: 0.005em;
+  }
+  .abertura__epigrafe-fonte {
+    font-family: var(--mono); font-size: 10px;
+    letter-spacing: 0.32em; text-transform: uppercase;
+    color: var(--ink-faint); margin: 0 auto 80px;
+  }
+
+  .abertura__kicker {
+    font-family: var(--display);
+    font-size: clamp(11px, 1vw, 13px);
+    letter-spacing: 0.42em; text-transform: uppercase;
+    color: var(--gold); margin-bottom: 28px;
+    font-weight: 400;
+  }
+  .abertura__marca {
+    font-family: var(--display);
+    font-size: clamp(56px, 9vw, 132px);
+    line-height: 0.95; letter-spacing: 0.16em;
+    color: var(--ink); font-weight: 400;
+    margin: 0 0 28px; text-indent: 0.16em;
+  }
+  .abertura__taglines {
+    font-family: var(--display);
+    font-size: clamp(13px, 1.1vw, 16px);
+    letter-spacing: 0.32em; text-transform: uppercase;
+    color: var(--slate); margin-bottom: 80px;
+    font-weight: 400;
+  }
+  .abertura__taglines span { color: var(--gold); margin: 0 12px; }
+
+  .abertura__mantra {
+    font-family: var(--display);
+    font-size: clamp(34px, 5vw, 64px);
+    letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--ink); font-weight: 500;
+    margin: 0 0 24px;
+  }
+  .abertura__mantra::after { content: "."; color: var(--gold); }
+
+  .abertura__subtitulo {
+    font-family: var(--serif); font-style: italic;
+    font-size: clamp(19px, 1.6vw, 22px);
+    line-height: 1.55; color: var(--ink-muted);
+    max-width: 640px; margin: 0 auto;
+    font-weight: 400;
+  }
+
+  .abertura__meta {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 28px; border-top: 1px solid var(--hairline);
+    padding-top: 28px;
+    font-family: var(--mono); font-size: 11px;
+    letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--ink-faint); text-align: left;
+  }
+  .abertura__meta dt { color: var(--ink-faint); margin-bottom: 8px; }
+  .abertura__meta dd {
+    margin: 0; color: var(--ink-soft);
+    letter-spacing: 0.08em; font-size: 12px;
+  }
+  .abertura__meta dd em { color: var(--gold-dim); font-style: normal; }
+
+  .abertura__rolar {
+    position: absolute; bottom: 28px; left: 50%;
+    transform: translateX(-50%);
+    font-family: var(--mono); font-size: 10px;
+    letter-spacing: 0.4em; text-transform: uppercase;
+    color: var(--ink-ghost);
+    animation: flutuar 3s ease-in-out infinite;
+  }
+  @keyframes flutuar {
+    0%, 100% { opacity: 0.5; transform: translate(-50%, 0); }
+    50% { opacity: 1; transform: translate(-50%, 4px); }
+  }
+
+  /* ============================================================ */
+  /* CAMADAS                                                       */
+  /* ============================================================ */
+  section.camada {
+    padding: 104px 0 88px;
+    border-bottom: 1px solid var(--hairline);
+    position: relative;
+  }
+  section.camada:nth-of-type(even) { background: var(--paper-2); }
+  section.camada::before {
+    content: ""; position: absolute;
+    top: 0; left: 50%; width: 80px; height: 1px;
+    background: var(--gold);
+    transform: translateX(-50%); opacity: 0.6;
+  }
+  .camada__abertura {
+    display: grid; grid-template-columns: 1fr;
+    gap: 26px; margin-bottom: 60px;
+  }
+  .camada__num {
+    font-family: var(--mono); font-size: 11px;
+    letter-spacing: 0.32em; text-transform: uppercase;
+    color: var(--gold-dim);
+    display: flex; align-items: center; gap: 14px;
+  }
+  .camada__num::before {
+    content: ""; display: inline-block;
+    width: 32px; height: 1px;
+    background: var(--gold);
+  }
+  .camada__titulo {
+    font-family: var(--display);
+    font-size: clamp(36px, 5vw, 62px);
+    line-height: 1.06; letter-spacing: -0.012em;
+    color: var(--ink); margin: 0;
+    max-width: 17ch; font-weight: 500;
+  }
+  .camada__titulo em {
+    font-style: italic;
+    color: var(--ink-soft); font-weight: 400;
+  }
+  .camada__sub {
+    font-family: var(--serif); font-style: italic;
+    font-size: 21px; line-height: 1.5;
+    color: var(--ink-muted); max-width: 58ch;
+    margin: 0; font-weight: 400;
+  }
+
+  /* ============================================================ */
+  /* CORPO                                                         */
+  /* ============================================================ */
+  p { margin: 0 0 1.2em; }
+  .corpo strong { color: var(--ink); font-weight: 500; }
+  .corpo em { font-style: italic; color: var(--ink-soft); }
+  .corpo code, code.inline {
+    font-family: var(--mono); font-size: 0.82em;
+    background: var(--paper-3);
+    border: 1px solid var(--hairline);
+    padding: 1px 6px; border-radius: 2px;
+    color: var(--ink-soft); white-space: nowrap;
+  }
+  .corpo a {
+    color: var(--gold-dim);
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+  }
+  .corpo a:hover { color: var(--gold); }
+
+  p.abertura-paragrafo {
+    font-size: 23px; line-height: 1.55;
+    color: var(--ink); font-weight: 400;
+    margin-bottom: 1.6em;
+  }
+  p.abertura-paragrafo::first-letter {
+    font-family: var(--display); font-size: 4em;
+    float: left; line-height: 0.92;
+    padding: 8px 14px 0 0;
+    color: var(--gold); font-weight: 600;
+  }
+
+  hr.separador {
+    border: 0; text-align: center;
+    margin: 44px auto; overflow: visible;
+    height: 1px; width: 64px;
+    background: var(--gold); opacity: 0.6;
+  }
+
+  .termo {
+    border-bottom: 1px dotted var(--gold);
+    cursor: help; position: relative;
+  }
+  .termo:hover { border-bottom-color: var(--gold-dim); }
+  .termo__balao {
+    position: absolute;
+    bottom: calc(100% + 10px); left: 50%;
+    transform: translateX(-50%) translateY(6px);
+    width: 280px; padding: 14px 16px;
+    background: var(--paper);
+    border: 1px solid var(--ink);
+    border-left: 2px solid var(--gold);
+    font-family: var(--mono); font-size: 11px;
+    line-height: 1.6; color: var(--ink-soft);
+    letter-spacing: 0.02em; text-transform: none;
+    pointer-events: none; opacity: 0;
+    transition: opacity 200ms var(--ease), transform 240ms var(--ease);
+    z-index: 30;
+    box-shadow: 0 16px 40px -16px rgba(26,36,64,0.25);
+  }
+  .termo__balao strong {
+    display: block; color: var(--gold-dim);
+    font-size: 10px; letter-spacing: 0.2em;
+    text-transform: uppercase; margin-bottom: 6px;
+    font-weight: 700;
+  }
+  .termo:hover .termo__balao,
+  .termo:focus .termo__balao {
+    opacity: 1; transform: translateX(-50%) translateY(0);
+  }
+
+  h3.marca {
+    font-family: var(--mono); font-size: 11px;
+    letter-spacing: 0.28em; text-transform: uppercase;
+    color: var(--gold-dim);
+    margin: 56px 0 18px; padding-top: 18px;
+    border-top: 1px solid var(--hairline);
+    font-weight: 700;
+  }
+  h4.subtitulo {
+    font-family: var(--display); font-size: 24px;
+    color: var(--ink); margin: 36px 0 14px;
+    letter-spacing: -0.005em; font-weight: 500;
+  }
+
+  .citacao {
+    font-family: var(--display); font-style: italic;
+    font-size: clamp(26px, 3vw, 36px);
+    line-height: 1.28; color: var(--ink);
+    margin: 64px auto;
+    padding: 0 0 0 32px;
+    border-left: 2px solid var(--gold);
+    max-width: 680px; letter-spacing: -0.005em;
+    font-weight: 400;
+  }
+  .citacao cite {
+    display: block; margin-top: 18px;
+    font-family: var(--mono); font-style: normal;
+    font-size: 11px; letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--ink-faint); font-weight: 400;
+  }
+
+  /* ============================================================ */
+  /* CATÁLOGO DE PRODUTOS                                          */
+  /* ============================================================ */
+  .catalogo {
+    margin: 56px 0;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0;
+    border-top: 1px solid var(--hairline);
+    border-left: 1px solid var(--hairline);
+  }
+  .catalogo__card {
+    padding: 28px 28px 30px;
+    border-right: 1px solid var(--hairline);
+    border-bottom: 1px solid var(--hairline);
+    background: var(--paper);
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+  .catalogo__cabecalho {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 14px;
+  }
+  .catalogo__nome {
+    font-family: var(--display);
+    font-size: 22px;
+    color: var(--ink);
+    font-weight: 500;
+    letter-spacing: -0.005em;
+    margin: 0;
+    line-height: 1.2;
+  }
+  .catalogo__nome em {
+    font-style: italic;
+    color: var(--ink-soft);
+    font-weight: 400;
+  }
+  .badge {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    padding: 4px 8px;
+    border: 1px solid;
+    white-space: nowrap;
+    font-weight: 500;
+    flex-shrink: 0;
+  }
+  .badge--producao { color: var(--green); border-color: var(--green); }
+  .badge--tier1 { color: var(--ink); border-color: var(--ink); background: var(--paper-3); }
+  .badge--maturacao { color: var(--amber); border-color: var(--amber); }
+  .badge--blueprint { color: var(--plum); border-color: var(--plum); }
+  .badge--substrato { color: var(--gold-dim); border-color: var(--gold-dim); }
+  .badge--roadmap { color: var(--ink-faint); border-color: var(--ink-faint); }
+  .badge--embedded { color: var(--slate); border-color: var(--slate); }
+
+  .catalogo__tipo {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--gold-dim);
+    margin-bottom: 14px;
+    font-weight: 500;
+  }
+  .catalogo__desc {
+    font-size: 16px;
+    color: var(--ink-muted);
+    line-height: 1.55;
+    margin: 0;
+    flex: 1;
+  }
+  .catalogo__desc strong { color: var(--ink); font-weight: 500; }
+  .catalogo__rodape {
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px dashed var(--hairline);
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+  .catalogo__rodape strong {
+    color: var(--gold-dim);
+    font-weight: 500;
+    margin-right: 6px;
+  }
+
+  .legenda-status {
+    margin: 32px 0 0;
+    padding: 18px 22px;
+    border: 1px solid var(--hairline);
+    background: var(--paper-3);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px 24px;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-muted);
+  }
+  .legenda-status__item { display: flex; align-items: center; gap: 8px; }
+  .legenda-status__cor {
+    width: 10px; height: 10px;
+    border: 1px solid;
+  }
+
+  /* ============================================================ */
+  /* EVIDÊNCIA DE PRODUÇÃO                                         */
+  /* ============================================================ */
+  .evidencia {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0;
+    margin: 56px 0;
+    border-top: 1px solid var(--hairline);
+    border-bottom: 1px solid var(--hairline);
+  }
+  .evidencia__bloco {
+    padding: 36px 28px 32px;
+    text-align: center;
+    border-right: 1px solid var(--hairline);
+  }
+  .evidencia__bloco:last-child { border-right: none; }
+  .evidencia__valor {
+    font-family: var(--display);
+    font-size: 52px;
+    line-height: 1;
+    color: var(--ink);
+    font-weight: 500;
+    letter-spacing: -0.022em;
+    margin-bottom: 12px;
+  }
+  .evidencia__valor sup {
+    font-size: 0.4em;
+    color: var(--gold);
+    vertical-align: super;
+    margin-left: 4px;
+    font-weight: 400;
+  }
+  .evidencia__delta {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--gold-dim);
+    margin-bottom: 8px;
+    font-weight: 500;
+  }
+  .evidencia__label {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 15px;
+    color: var(--ink-muted);
+    line-height: 1.5;
+  }
+  .evidencia__contexto {
+    text-align: center;
+    margin: 0 auto 48px;
+    max-width: 580px;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    line-height: 1.7;
+  }
+  .evidencia__contexto strong {
+    color: var(--ink-soft);
+    font-weight: 500;
+  }
+
+  /* ============================================================ */
+  /* PIPELINE                                                      */
+  /* ============================================================ */
+  .pipeline {
+    margin: 64px auto; max-width: 920px;
+    position: relative; padding: 0 28px;
+  }
+  .pipeline__trilho { position: relative; padding-left: 64px; }
+  .pipeline__trilho::before {
+    content: ""; position: absolute;
+    left: 19px; top: 12px; bottom: 12px;
+    width: 1px;
+    background: linear-gradient(180deg, var(--hairline), var(--hairline-strong), var(--hairline));
+  }
+  .pipeline__pulso {
+    position: absolute; left: 13px;
+    width: 13px; height: 13px;
+    border-radius: 50%;
+    background: var(--gold);
+    box-shadow: 0 0 14px var(--gold-pale), 0 0 28px rgba(184,148,96,0.3);
+    top: 0; opacity: 0; z-index: 2;
+  }
+  .pipeline.is-ativo .pipeline__pulso {
+    opacity: 1; animation: descer 8s linear infinite;
+  }
+  @keyframes descer {
+    0%   { top: -8px; opacity: 0; transform: scale(0.6); }
+    8%   { opacity: 1; transform: scale(1); }
+    92%  { opacity: 1; transform: scale(1); }
+    100% { top: calc(100% + 8px); opacity: 0; transform: scale(0.6); }
+  }
+  .passo {
+    position: relative;
+    padding: 22px 0 22px 28px;
+    border-left: 1px dashed transparent;
+    transition: border-left-color 600ms var(--ease);
+  }
+  .passo.is-visivel { border-left-color: var(--hairline); }
+  .passo__num {
+    position: absolute; left: -64px; top: 22px;
+    width: 38px; height: 38px;
+    border-radius: 50%;
+    background: var(--paper);
+    border: 1px solid var(--hairline-strong);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--mono); font-size: 12px;
+    color: var(--ink-faint);
+    transition: all 600ms var(--ease);
+    z-index: 3; font-weight: 500;
+  }
+  .passo.is-visivel .passo__num {
+    border-color: var(--gold); color: var(--gold-dim);
+    box-shadow: 0 0 0 6px rgba(184,148,96,0.07);
+  }
+  .passo__nome {
+    font-family: var(--display); font-size: 21px;
+    color: var(--ink); margin-bottom: 4px;
+    letter-spacing: -0.005em; font-weight: 500;
+  }
+  .passo__nome code {
+    font-family: var(--mono); font-size: 0.7em;
+    color: var(--slate); margin-left: 10px;
+    font-weight: 400; border: none;
+    background: none; padding: 0;
+  }
+  .passo__desc {
+    font-size: 17px; color: var(--ink-muted);
+    line-height: 1.55; max-width: 58ch; margin: 0;
+  }
+  .passo__falha {
+    margin-top: 10px;
+    font-family: var(--mono); font-size: 11px;
+    letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--ink-soft);
+  }
+  .passo__falha::before { content: "↯  "; color: var(--gold-dim); }
+  .passo--final { padding-top: 36px; }
+  .passo--final .passo__num {
+    background: var(--gold); color: var(--paper); border-color: var(--gold);
+  }
+  .pipeline__limite {
+    display: flex; align-items: center; gap: 14px;
+    margin: 0 0 28px 64px;
+    font-family: var(--mono); font-size: 11px;
+    letter-spacing: 0.22em; text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+  .pipeline__limite::before {
+    content: ""; height: 1px; width: 36px;
+    background: var(--hairline-strong);
+  }
+  .pipeline__limite--fim { margin-top: 28px; }
+  .pipeline__limite--fim::before { background: var(--gold); }
+
+  /* ============================================================ */
+  /* CADEIA MERKLE                                                 */
+  /* ============================================================ */
+  .cadeia { margin: 56px 0; overflow-x: auto; padding: 24px 0; }
+  .cadeia__inner {
+    display: flex; align-items: stretch;
+    gap: 0; min-width: 880px;
+  }
+  .cadeia__no {
+    flex: 1; min-width: 200px; padding: 20px;
+    border: 1px solid var(--hairline-strong);
+    background: var(--paper); position: relative;
+    font-family: var(--mono); font-size: 11px;
+    line-height: 1.6;
+    transition: all 400ms var(--ease);
+    cursor: pointer;
+  }
+  .cadeia__no:focus-visible { outline-offset: -3px; }
+  .cadeia__no + .cadeia__no { border-left: none; }
+  .cadeia__no::before {
+    content: ""; position: absolute;
+    right: -8px; top: 50%;
+    transform: translateY(-50%) rotate(45deg);
+    width: 14px; height: 14px;
+    background: var(--paper);
+    border-right: 1px solid var(--hairline-strong);
+    border-top: 1px solid var(--hairline-strong);
+    z-index: 2;
+    transition: border-color 400ms var(--ease);
+  }
+  .cadeia__no:last-child::before { display: none; }
+  .cadeia__no.is-ativo, .cadeia__no:hover {
+    border-color: var(--gold); background: var(--paper-3);
+  }
+  .cadeia__no.is-ativo::before, .cadeia__no:hover::before {
+    border-color: var(--gold);
+  }
+  .cadeia__label {
+    color: var(--gold-dim); letter-spacing: 0.2em;
+    text-transform: uppercase; font-size: 10px;
+    margin-bottom: 12px; font-weight: 700;
+  }
+  .cadeia__hash {
+    color: var(--ink); word-break: break-all;
+    font-size: 12px; margin-bottom: 10px; font-weight: 500;
+  }
+  .cadeia__campo {
+    display: flex; justify-content: space-between;
+    gap: 12px; padding: 5px 0;
+    border-top: 1px dashed var(--hairline);
+    color: var(--ink-muted);
+  }
+  .cadeia__campo span:first-child {
+    color: var(--ink-faint); letter-spacing: 0.08em;
+    text-transform: uppercase; font-size: 9px;
+  }
+  .cadeia__campo span:last-child { color: var(--ink-soft); }
+  .cadeia__legenda {
+    margin-top: 16px; text-align: center;
+    font-family: var(--mono); font-size: 10px;
+    letter-spacing: 0.22em; text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+
+  /* ============================================================ */
+  /* RECIBO                                                        */
+  /* ============================================================ */
+  .recibo {
+    margin: 48px 0;
+    border: 1px solid var(--ink-soft);
+    background: var(--paper); padding: 0;
+    font-family: var(--mono); font-size: 13px;
+    line-height: 1.78; overflow: hidden;
+    box-shadow: 0 24px 48px -28px rgba(26,36,64,0.2);
+  }
+  .recibo__topo {
+    padding: 14px 22px;
+    border-bottom: 1px solid var(--hairline-strong);
+    display: flex; justify-content: space-between;
+    flex-wrap: wrap; gap: 8px;
+    font-size: 11px; letter-spacing: 0.22em;
+    text-transform: uppercase; color: var(--ink-muted);
+    background: var(--paper-2);
+  }
+  .recibo__topo strong { color: var(--ink); font-weight: 700; }
+  .recibo__corpo {
+    padding: 22px 22px 26px;
+    color: var(--ink-soft); overflow-x: auto;
+  }
+  .recibo__corpo pre {
+    margin: 0; font-family: var(--mono);
+    font-size: 13px; color: var(--ink-soft);
+    line-height: 1.78; white-space: pre;
+  }
+  .rk { color: var(--ink); font-weight: 500; }
+  .rv { color: var(--slate); }
+  .rs { color: var(--ink-faint); }
+  .rt { color: var(--gold-dim); font-weight: 500; }
+  .rn { color: var(--ink-soft); padding-left: 1ch; font-style: italic; }
+  .rcomment { color: var(--ink-faint); font-style: italic; padding-left: 2ch; }
+
+  /* ============================================================ */
+  /* MATRIZ                                                        */
+  /* ============================================================ */
+  .matriz {
+    width: 100%; border-collapse: collapse;
+    margin: 44px 0;
+    font-family: var(--serif); font-size: 17px;
+  }
+  .matriz th, .matriz td {
+    text-align: left; padding: 14px 14px;
+    border-bottom: 1px solid var(--hairline);
+    vertical-align: top;
+  }
+  .matriz thead th {
+    font-family: var(--mono); font-size: 10px;
+    letter-spacing: 0.22em; text-transform: uppercase;
+    color: var(--gold-dim);
+    border-bottom: 1px solid var(--ink-faint);
+    padding-bottom: 16px; font-weight: 700;
+  }
+  .matriz tbody tr { transition: background-color 200ms var(--ease); }
+  .matriz tbody tr:hover { background-color: rgba(184,148,96,0.04); }
+  .matriz tbody td:first-child {
+    font-family: var(--mono); font-size: 12px;
+    color: var(--ink); white-space: nowrap;
+    width: 130px; font-weight: 500;
+  }
+  .matriz tbody td:nth-child(2) {
+    color: var(--ink); max-width: 30ch; font-weight: 500;
+  }
+  .matriz tbody td:nth-child(3) {
+    color: var(--ink-muted); font-size: 15px; line-height: 1.5;
+  }
+  .matriz tbody td:last-child { width: 150px; }
+  .matriz__sep td {
+    font-family: var(--mono); font-size: 10px;
+    letter-spacing: 0.24em; text-transform: uppercase;
+    color: var(--gold-dim); background: var(--paper-3);
+    font-weight: 700;
+    padding: 10px 14px; border-top: 1px solid var(--ink-faint);
+  }
+
+  .veredicto {
+    font-family: var(--mono); font-size: 10px;
+    letter-spacing: 0.16em; text-transform: uppercase;
+    padding: 4px 9px; border: 1px solid;
+    border-radius: 1px; display: inline-block;
+    white-space: nowrap; font-weight: 500;
+  }
+  .veredicto--ok { color: var(--green); border-color: var(--green); }
+  .veredicto--parcial { color: var(--amber); border-color: var(--amber); }
+  .veredicto--pendente { color: var(--ink-faint); border-color: var(--ink-faint); }
+  .veredicto--mapeado { color: var(--slate); border-color: var(--slate); }
+
+  /* ============================================================ */
+  /* PARADOXO                                                      */
+  /* ============================================================ */
+  .paradoxo {
+    margin: 56px auto; max-width: 760px;
+    border-top: 1px solid var(--hairline);
+    border-bottom: 1px solid var(--hairline);
+    padding: 44px 0;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center; gap: 28px;
+  }
+  .paradoxo__lado {
+    text-align: center;
+    font-family: var(--mono); font-size: 11px;
+    letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--ink-muted);
+  }
+  .paradoxo__lado strong {
+    display: block; font-family: var(--display);
+    font-size: 30px; color: var(--ink);
+    text-transform: none; letter-spacing: -0.01em;
+    margin-bottom: 10px; font-weight: 500;
+  }
+  .paradoxo__lado small {
+    display: block; margin-top: 12px;
+    color: var(--ink-faint); font-size: 11px;
+    letter-spacing: 0.14em;
+  }
+  .paradoxo__centro {
+    text-align: center; padding: 22px 18px;
+    border: 1px solid var(--gold); color: var(--gold-dim);
+    font-family: var(--mono); font-size: 10px;
+    letter-spacing: 0.22em; text-transform: uppercase;
+    min-width: 130px;
+    background: rgba(184,148,96,0.04);
+  }
+  .paradoxo__centro strong {
+    display: block; font-family: var(--display);
+    font-size: 18px; color: var(--ink);
+    letter-spacing: -0.005em; text-transform: none;
+    margin-bottom: 4px; font-weight: 500;
+    font-style: italic;
+  }
+
+  /* ============================================================ */
+  /* STACK                                                         */
+  /* ============================================================ */
+  .stack {
+    margin: 48px 0; display: grid;
+    grid-template-columns: 1fr 1.6fr; gap: 0;
+    border-top: 1px solid var(--hairline);
+  }
+  .stack__camada, .stack__tech {
+    padding: 16px 18px;
+    border-bottom: 1px solid var(--hairline);
+    font-size: 16px;
+  }
+  .stack__camada {
+    font-family: var(--mono); font-size: 11px;
+    letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--gold-dim); background: var(--paper-2);
+    font-weight: 500;
+  }
+  .stack__tech { color: var(--ink); }
+  .stack__tech code {
+    font-family: var(--mono); font-size: 0.78em;
+    color: var(--slate); margin-left: 6px;
+    background: none; border: none; padding: 0;
+  }
+
+  /* ============================================================ */
+  /* LIMITES                                                       */
+  /* ============================================================ */
+  .limites {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 0; margin: 48px 0;
+    border-top: 1px solid var(--hairline);
+    border-bottom: 1px solid var(--hairline);
+  }
+  .limites__celula {
+    padding: 26px 28px;
+    border-right: 1px solid var(--hairline);
+  }
+  .limites__celula:nth-child(2n) { border-right: none; }
+  .limites__celula:nth-child(-n+2) { border-bottom: 1px solid var(--hairline); }
+  .limites__label {
+    font-family: var(--mono); font-size: 10px;
+    letter-spacing: 0.22em; text-transform: uppercase;
+    color: var(--gold-dim); margin-bottom: 12px;
+    font-weight: 500;
+  }
+  .limites__valor {
+    font-family: var(--display); font-size: 36px;
+    line-height: 1.1; color: var(--ink);
+    letter-spacing: -0.012em; margin-bottom: 10px;
+    font-weight: 500;
+  }
+  .limites__valor sub {
+    font-family: var(--mono); font-size: 12px;
+    color: var(--ink-faint); letter-spacing: 0.14em;
+    vertical-align: baseline; margin-left: 8px;
+    text-transform: uppercase; font-weight: 400;
+  }
+  .limites__nota {
+    font-size: 15px; color: var(--ink-muted);
+    line-height: 1.5; margin: 0;
+  }
+
+  /* ============================================================ */
+  /* ESCOPO                                                        */
+  /* ============================================================ */
+  .escopo {
+    margin: 40px 0; display: grid;
+    grid-template-columns: 200px 1fr;
+    gap: 14px 28px; font-size: 17px;
+  }
+  .escopo dt {
+    font-family: var(--mono); font-size: 11px;
+    letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--gold-dim); padding-top: 4px;
+    font-weight: 700;
+  }
+  .escopo dd {
+    margin: 0; color: var(--ink-muted);
+    line-height: 1.55; padding-bottom: 14px;
+    border-bottom: 1px solid var(--hairline);
+  }
+  .escopo dd:last-of-type { border-bottom: none; }
+
+  /* ============================================================ */
+  /* CONSELHO                                                      */
+  /* ============================================================ */
+  .conselho {
+    margin: 48px 0;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0;
+    border-top: 1px solid var(--hairline);
+  }
+  .conselho__linha {
+    padding: 22px 0;
+    border-bottom: 1px solid var(--hairline);
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    gap: 28px;
+    align-items: baseline;
+  }
+  .conselho__perfil {
+    font-family: var(--mono); font-size: 11px;
+    letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--gold-dim); font-weight: 700;
+  }
+  .conselho__perfil em {
+    font-style: normal; color: var(--ink-faint);
+    font-size: 10px; letter-spacing: 0.14em;
+    display: block; margin-top: 4px;
+    font-weight: 400;
+  }
+  .conselho__credencial {
+    font-size: 16px; color: var(--ink-muted);
+    line-height: 1.55;
+  }
+  .conselho__credencial strong {
+    color: var(--ink); font-weight: 500;
+  }
+
+  /* ============================================================ */
+  /* GLOSSÁRIO                                                     */
+  /* ============================================================ */
+  .glossario {
+    column-count: 2; column-gap: 48px; margin: 48px 0;
+  }
+  .glossario__item {
+    break-inside: avoid;
+    margin-bottom: 22px; padding-bottom: 18px;
+    border-bottom: 1px solid var(--hairline);
+  }
+  .glossario__termo {
+    font-family: var(--mono); font-size: 11px;
+    letter-spacing: 0.22em; text-transform: uppercase;
+    color: var(--gold-dim); margin-bottom: 6px;
+    font-weight: 700;
+  }
+  .glossario__def {
+    margin: 0; font-size: 16px;
+    color: var(--ink-muted); line-height: 1.55;
+  }
+
+  /* ============================================================ */
+  /* FICHA                                                         */
+  /* ============================================================ */
+  .ficha {
+    padding: 96px 36px 64px;
+    border-top: 1px solid var(--hairline);
+    background: var(--paper);
+  }
+  .ficha__inner {
+    max-width: 760px; margin: 0 auto;
+    font-family: var(--mono); font-size: 12px;
+    letter-spacing: 0.12em; color: var(--ink-muted);
+    line-height: 2;
+  }
+  .ficha__titulo {
+    font-family: var(--display); font-size: 38px;
+    color: var(--ink); letter-spacing: -0.012em;
+    margin-bottom: 32px; font-style: italic;
+    font-weight: 500;
+  }
+  .ficha dl {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    gap: 8px 24px; margin: 0;
+  }
+  .ficha dt {
+    color: var(--ink-faint);
+    text-transform: uppercase; letter-spacing: 0.18em;
+  }
+  .ficha dd { margin: 0; color: var(--ink); }
+  .ficha__rodape {
+    margin-top: 56px; padding-top: 28px;
+    border-top: 1px solid var(--hairline);
+    text-transform: uppercase; letter-spacing: 0.24em;
+    color: var(--gold-dim); font-size: 11px;
+    text-align: center;
+  }
+  .ficha__rodape span { color: var(--gold); margin: 0 10px; }
+
+  /* ============================================================ */
+  /* REVELAR                                                       */
+  /* ============================================================ */
+  .revelar {
+    opacity: 0; transform: translateY(16px);
+    transition: opacity 900ms var(--ease-out), transform 900ms var(--ease-out);
+  }
+  .revelar.is-visivel { opacity: 1; transform: translateY(0); }
+
+  /* ============================================================ */
+  /* REDUCED MOTION                                                */
+  /* ============================================================ */
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+    .revelar { opacity: 1; transform: none; }
+    .pipeline__pulso { display: none; }
+    .abertura__rolar { animation: none; opacity: 0.5; }
+  }
+
+  /* ============================================================ */
+  /* RESPONSIVO                                                    */
+  /* ============================================================ */
+  @media (max-width: 1100px) {
+    .sumario { left: 24px; top: 24px; max-width: 200px; }
+    .canto { right: 24px; top: 24px; }
+  }
+  @media (max-width: 880px) {
+    body { font-size: 18px; }
+    .sumario { display: none; }
+    .canto { gap: 14px; }
+    .progress { width: 1px; }
+    .abertura { padding: 32px 22px; }
+    .abertura__meta { grid-template-columns: 1fr 1fr; gap: 18px; }
+    .abertura__centro { padding: 32px 0; }
+    .wrap, .wrap-wide { padding: 0 22px; }
+    section.camada { padding: 80px 0 64px; }
+    .pipeline__trilho { padding-left: 48px; }
+    .passo__num { left: -48px; width: 32px; height: 32px; font-size: 11px; }
+    .pipeline__limite { margin-left: 48px; }
+    .pipeline__pulso { left: 9px; width: 11px; height: 11px; }
+    .paradoxo { grid-template-columns: 1fr; gap: 18px; padding: 28px 0; }
+    .stack { grid-template-columns: 1fr; }
+    .stack__camada { padding: 12px 14px 4px; border-bottom: none; }
+    .stack__tech { padding: 0 14px 14px; }
+    .limites { grid-template-columns: 1fr; }
+    .limites__celula { border-right: none; border-bottom: 1px solid var(--hairline); }
+    .limites__celula:last-child { border-bottom: none; }
+    .escopo { grid-template-columns: 1fr; gap: 6px 0; }
+    .escopo dt { padding-top: 14px; }
+    .escopo dd { padding-bottom: 14px; }
+    .glossario { column-count: 1; }
+    .ficha dl { grid-template-columns: 1fr; gap: 4px 0; }
+    .ficha dt { margin-top: 14px; }
+    .termo__balao { width: 220px; }
+    p.abertura-paragrafo::first-letter { font-size: 3em; padding: 4px 10px 0 0; }
+    .matriz { font-size: 15px; }
+    .matriz th, .matriz td { padding: 10px 8px; }
+    .matriz tbody td:first-child { width: auto; }
+    .catalogo { grid-template-columns: 1fr; }
+    .catalogo__card { border-right: none; }
+    .evidencia { grid-template-columns: 1fr; }
+    .evidencia__bloco { border-right: none; border-bottom: 1px solid var(--hairline); }
+    .evidencia__bloco:last-child { border-bottom: none; }
+    .conselho__linha { grid-template-columns: 1fr; gap: 8px; }
+  }
+
+  /* ============================================================ */
+  /* IMPRESSÃO                                                     */
+  /* ============================================================ */
+  @page {
+    size: A4;
+    margin: 22mm 18mm 22mm 18mm;
+    @top-left {
+      content: "FoundLab · Programmable Trust Layer";
+      font-family: "JetBrains Mono", monospace;
+      font-size: 9pt;
+      color: #888;
+    }
+    @top-right {
+      content: "Confidencial · NDA";
+      font-family: "JetBrains Mono", monospace;
+      font-size: 9pt;
+      color: #888;
+    }
+    @bottom-right {
+      content: counter(page) " / " counter(pages);
+      font-family: "JetBrains Mono", monospace;
+      font-size: 9pt;
+      color: #888;
+    }
+    @bottom-left {
+      content: "REX Guard · Documento Técnico";
+      font-family: "JetBrains Mono", monospace;
+      font-size: 9pt;
+      color: #888;
+    }
+  }
+  @page :first {
+    @top-left { content: ""; }
+    @top-right { content: ""; }
+    @bottom-left { content: ""; }
+    @bottom-right { content: ""; }
+  }
+  @media print {
+    body { background: #fff; }
+    .progress, .sumario, .canto, .abertura__rolar, .pipeline__pulso { display: none !important; }
+    section.camada {
+      page-break-before: always;
+      page-break-inside: avoid;
+      padding: 30px 0;
+      background: #fff !important;
+    }
+    .camada__abertura { page-break-after: avoid; margin-bottom: 24px; }
+    .abertura {
+      min-height: auto;
+      padding: 30px;
+      page-break-after: always;
+    }
+    .revelar { opacity: 1 !important; transform: none !important; }
+    .termo { border-bottom: none; }
+    .termo__balao { display: none !important; }
+    .cadeia__inner { min-width: 0; flex-wrap: wrap; }
+    .recibo { box-shadow: none; }
+    pre { white-space: pre-wrap !important; }
+    h3.marca, h4.subtitulo { page-break-after: avoid; }
+    a { color: inherit !important; text-decoration: none; }
+    .catalogo__card,
+    .evidencia__bloco,
+    .conselho__linha { page-break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+
+<a href="#principal" class="skip">Pular para o conteúdo</a>
+
+<div class="progress" aria-hidden="true">
+  <div class="progress__bar" id="progress-bar"></div>
+  <div class="progress__ticks" id="progress-ticks"></div>
+</div>
+
+<nav class="sumario" id="sumario" aria-label="Sumário do documento">
+  <div class="sumario__atual">
+    <span class="sumario__atual-num" id="sumario-num">00</span>
+    <span class="sumario__atual-titulo" id="sumario-titulo">Abertura</span>
+  </div>
+  <ol class="sumario__lista" id="sumario-lista"></ol>
+</nav>
+
+<div class="canto" aria-label="Controles do documento">
+  <button class="canto__btn" id="btn-sumario" type="button" aria-expanded="false" aria-controls="sumario">Sumário <span class="canto__kbd">S</span></button>
+  <button class="canto__btn" id="btn-imprimir" type="button" aria-label="Imprimir documento">Imprimir <span class="canto__kbd">P</span></button>
+</div>
+
+<!-- ============================================================ -->
+<!-- ABERTURA                                                      -->
+<!-- ============================================================ -->
+<header class="abertura" id="cap-0" data-num="00" data-label="Abertura" data-titulo="FoundLab">
+
+  <div class="abertura__topo">
+    <span>Documento Técnico</span>
+    <span>Distribuição Restrita · Sob NDA</span>
+  </div>
+
+  <div class="abertura__centro">
+
+    <div class="ornamento" aria-hidden="true">
+      <div class="ornamento__linha"></div>
+      <div class="ornamento__diamante"></div>
+      <div class="ornamento__linha"></div>
+    </div>
+
+    <p class="abertura__epigrafe">
+      <em>“A demonstração de que o que antes era tido como impossível é agora possível anula a impossibilidade anterior, mesmo que realizar o impossível já fosse concebível.”</em>
+    </p>
+    <p class="abertura__epigrafe-fonte">FoundLab · Manifesto</p>
+
+    <div class="abertura__kicker">Auditable Trust Infrastructure</div>
+
+    <h1 class="abertura__marca">FOUNDLAB</h1>
+
+    <div class="abertura__taglines">Programmable Trust Layer <span>·</span> Trust by Physics</div>
+
+    <h2 class="abertura__mantra">Don’t trust, verify</h2>
+
+    <p class="abertura__subtitulo">
+      Infraestrutura auditável de Inteligência Artificial Generativa em ambiente regulado.
+      Leitura em camadas progressivas para conselho, CISO, arquitetura, auditoria e parceiros de nuvem.
+    </p>
+  </div>
+
+  <dl class="abertura__meta">
+    <div><dt>Camada</dt><dd>REX Guard <em>· v1.3.x</em></dd></div>
+    <div><dt>Categoria</dt><dd>Programmable Trust Layer</dd></div>
+    <div><dt>Plano regulatório</dt><dd>BCB 538/2025 · LGPD · OPIN</dd></div>
+    <div><dt>Infraestrutura</dt><dd>GCP <em>· southamerica-east1</em></dd></div>
+  </dl>
+
+  <div class="abertura__rolar" aria-hidden="true">descer para começar</div>
+</header>
+
+<main id="principal">
+
+<!-- ============================================================ -->
+<!-- CAMADA I — TESE                                               -->
+<!-- ============================================================ -->
+<section class="camada" id="cap-1" data-num="I" data-label="Ponto de partida" data-titulo="Trust by Physics">
+  <div class="wrap revelar">
+    <header class="camada__abertura">
+      <div class="camada__num">Camada I · Ponto de partida</div>
+      <h2 class="camada__titulo">A <em>física</em> da confiança</h2>
+      <p class="camada__sub">Conformidade como evento matemático e físico, e não declaração de intenção.</p>
+    </header>
+
+    <div class="corpo">
+      <p class="abertura-paragrafo">
+        Toda instituição financeira regulada que adota Inteligência Artificial Generativa em produção
+        opera sob uma tensão estrutural: o ato de inferir produz evidência transitória, enquanto a auditoria
+        e a fiscalização exigem evidência <em>durável, ordenada e contestável</em>. REX Guard foi desenhado
+        para resolver essa tensão na camada da infraestrutura, antes que ela se manifeste como risco
+        operacional, regulatório ou reputacional.
+      </p>
+
+      <p>
+        O posicionamento institucional é <strong>Trust by Physics</strong>. A leitura subjacente é simples e
+        consequente: a conformidade deixa de ser um processo humano sujeito a interpretação e converte-se
+        em um evento mensurável. Cada decisão tomada por um modelo de linguagem dentro do perímetro
+        regulado deixa um rastro criptográfico assinado, ancorado em uma sequência temporal monotônica,
+        e persistido de forma imutável.
+      </p>
+
+      <p>
+        A camada anterior à infraestrutura é o reconhecimento de um conflito estrutural que a FoundLab
+        chama de <strong>Paradoxo da Retenção</strong>. De um lado, normas setoriais brasileiras (BCB,
+        BACEN) e internacionais (SOX, DORA, SR 11-7) impõem retenção e rastreabilidade. Do outro,
+        regimes de privacidade (LGPD, GDPR) impõem minimização e direito ao apagamento. A resposta
+        arquitetural não é escolher um lado; é desacoplar.
+      </p>
+
+      <div class="paradoxo">
+        <div class="paradoxo__lado">
+          <strong>Retenção</strong>
+          BCB 538/2025 · DORA · SOX
+          <small>Manter a evidência</small>
+        </div>
+        <div class="paradoxo__centro">
+          <strong>Desacoplamento</strong>
+          criptográfico
+        </div>
+        <div class="paradoxo__lado">
+          <strong>Apagamento</strong>
+          LGPD · GDPR
+          <small>Minimizar o payload</small>
+        </div>
+      </div>
+
+      <p>
+        O método é provar que a decisão ocorreu sob política específica, assinar a prova, ancorá-la de
+        forma imutável e minimizar o que se retém da inferência em si. O <em>payload</em> sensível não
+        precisa sobreviver; a <em>prova</em> da decisão precisa. REX Guard separa rigorosamente um do
+        outro.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- CAMADA II — IDENTIDADE                                        -->
+<!-- ============================================================ -->
+<section class="camada" id="cap-2" data-num="II" data-label="Identidade" data-titulo="O que REX Guard é">
+  <div class="wrap revelar">
+    <header class="camada__abertura">
+      <div class="camada__num">Camada II · Identidade do produto</div>
+      <h2 class="camada__titulo">Um <em>proxy reverso</em> fail-closed, não um modelo</h2>
+      <p class="camada__sub">A delimitação técnica que sustenta toda a leitura regulatória subsequente.</p>
+    </header>
+
+    <div class="corpo">
+      <p class="abertura-paragrafo">
+        REX Guard é a instância produtiva atual do <em>Programmable Trust Layer</em> da FoundLab. Opera como proxy reverso
+        <span class="termo" tabindex="0">fail-closed<span class="termo__balao"><strong>Fail-closed</strong>Postura de falha em que qualquer erro de dependência interrompe a chamada como BLOCKED. Não admite degradação silenciosa nem fallback permissivo.</span></span>
+        entre aplicações regulamentadas e modelos do Vertex AI / Gemini. Não é um modelo de IA. É a infraestrutura que garante que cada inferência
+        ocorra dentro dos limites legais e contratuais aplicáveis.
+      </p>
+
+      <p>
+        A distinção é arquitetural e não retórica. Um modelo de linguagem é avaliado por sua capacidade
+        preditiva, sua latência e seu custo. Uma camada de confiança é avaliada por sua disciplina:
+        quais chamadas ela interrompe, sob quais condições, com qual evidência, sob qual ordem temporal.
+        REX Guard intercepta cada chamada ao Gemini antes e depois da inferência, e produz, para cada
+        chamada concluída, um recibo selado.
+      </p>
+
+      <h4 class="subtitulo">Complementar, não concorrente, aos controles nativos</h4>
+      <p>
+        A camada não substitui controles do provedor de modelo. Ela é <strong>complementar</strong> a
+        controles nativos da plataforma — entre eles Cloud Armor, Model Armor e os filtros de
+        segurança do Vertex AI — e adiciona o que esses controles não produzem por desenho:
+        <em>evidência por decisão</em>, verificável por um auditor externo sem acesso ao payload
+        subjacente, e resistente a modificação retroativa. Controles nativos detectam e mitigam
+        ameaças no plano do tráfego e do prompt; a camada de evidência sela a decisão.
+      </p>
+
+      <p>
+        A arquitetura instancia três pilares — apresentados na camada IV — que constituem a
+        proposta da FoundLab para <strong>Auditable Trust Infrastructure</strong>. Cada pilar é
+        materializado por um conjunto específico de serviços, contratos de dados e invariantes
+        operacionais.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- CAMADA III — CATÁLOGO                                         -->
+<!-- ============================================================ -->
+<section class="camada" id="cap-3" data-num="III" data-label="Suíte" data-titulo="Mapa de produtos e maturidade">
+  <div class="wrap revelar">
+    <header class="camada__abertura">
+      <div class="camada__num">Camada III · A suíte FoundLab</header>
+      <h2 class="camada__titulo">O <em>portfólio</em>, declarado por maturidade</h2>
+      <p class="camada__sub">Onde REX Guard se encaixa na arquitetura da FoundLab e o que mais existe — em produção, em maturação, em blueprint ou em substrato.</p>
+    </header>
+
+    <div class="corpo">
+      <p>
+        A FoundLab opera como camada de infraestrutura, não como portfólio de aplicações. O conjunto
+        abaixo apresenta os módulos da suíte, declarados por sua maturidade institucional corrente.
+        REX Guard é o produto técnico-comercial mais avançado do portfólio; ele instancia, em
+        produção, o conjunto de invariantes que toda a suíte compartilha.
+      </p>
+    </div>
+  </div>
+
+  <div class="wrap-wide revelar">
+    <div class="catalogo">
+
+      <div class="catalogo__card">
+        <div class="catalogo__cabecalho">
+          <h3 class="catalogo__nome">REX Guard <em>Gemini</em></h3>
+          <span class="badge badge--tier1">Tier-1 em produção</span>
+        </div>
+        <div class="catalogo__tipo">Programmable Trust Layer · produto</div>
+        <p class="catalogo__desc">
+          Proxy reverso fail-closed entre aplicações regulamentadas e modelos do Vertex AI / Gemini.
+          Produz <strong>SealedRecibo</strong> assinado em ECDSA P-256 raw por decisão, encadeado em
+          cadeia Merkle atômica via Spanner TrueTime, persistido em BigQuery WORM. É o backbone
+          institucional do portfólio.
+        </p>
+        <div class="catalogo__rodape"><strong>Buyer ·</strong> CISO, auditoria, conselho · ciclo institucional</div>
+      </div>
+
+      <div class="catalogo__card">
+        <div class="catalogo__cabecalho">
+          <h3 class="catalogo__nome">REX Guard <em>Shield</em></h3>
+          <span class="badge badge--blueprint">Blueprint</span>
+        </div>
+        <div class="catalogo__tipo">Wedge defensivo · produto autônomo</div>
+        <p class="catalogo__desc">
+          Wedge comercial de ciclo curto sobre o backbone REX Guard. Hierarquia explícita:
+          <strong>PromptShield · ContextShield · ToolShield · LoopShield</strong> como módulos sobre
+          o substrato Veritas. Eixo de diferenciação: defesa contra <em>prompt injection</em> como
+          porta de entrada, com <strong>thought signature custody</strong> do Gemini 3 como moat —
+          <code class="inline">ThoughtSignatureReceipt</code> específico do Gemini 3 sobre arquitetura
+          model-agnóstica. Status: spec completa, zero código.
+        </p>
+        <div class="catalogo__rodape"><strong>Buyer ·</strong> CISO, DevOps, AI lead · ciclo curto, 5 decisores</div>
+      </div>
+
+      <div class="catalogo__card">
+        <div class="catalogo__cabecalho">
+          <h3 class="catalogo__nome">LoopShield</h3>
+          <span class="badge badge--blueprint">Blueprint</span>
+        </div>
+        <div class="catalogo__tipo">Módulo de Shield · governança de agent loops</div>
+        <p class="catalogo__desc">
+          Módulo mais avançado do Shield. Governa transições dentro de <em>agent loops</em> aplicando
+          política e gerando SealedRecibos em cada <em>boundary</em> crítico:
+          <code class="inline">PreToolUse</code>, <code class="inline">PostToolUse</code>,
+          <code class="inline">SubagentStart</code>, <code class="inline">PreCompact</code> e
+          <code class="inline">Stop</code>. Indicado quando o sistema protegido tem execution loop
+          — tool calling, subagentes, MCP. Para sistemas prompt-resposta basta PromptShield + ContextShield.
+        </p>
+        <div class="catalogo__rodape"><strong>Dependência ·</strong> Shield · não opera isoladamente</div>
+      </div>
+
+      <div class="catalogo__card">
+        <div class="catalogo__cabecalho">
+          <h3 class="catalogo__nome">Umbrella Platform</h3>
+          <span class="badge badge--producao">Em produção</span>
+        </div>
+        <div class="catalogo__tipo">Infraestrutura serverless · plano de execução</div>
+        <p class="catalogo__desc">
+          Infraestrutura serverless sobre GCP — Vertex AI, Cloud Run, Cloud Armor, Cloud KMS,
+          BigQuery WORM — opcionalmente com NVIDIA NIMs, 100% dentro do VPC do cliente.
+          Soberania de dados e <em>zero vendor lock-in</em> por desenho. É o plano de execução
+          sobre o qual os módulos FoundLab são instanciados.
+        </p>
+        <div class="catalogo__rodape"><strong>Buyer ·</strong> CIO, arquitetura, parceiros de nuvem</div>
+      </div>
+
+      <div class="catalogo__card">
+        <div class="catalogo__cabecalho">
+          <h3 class="catalogo__nome">Veritas <em>Protocol</em></h3>
+          <span class="badge badge--substrato">Substrato</span>
+        </div>
+        <div class="catalogo__tipo">Substrato criptográfico · não é SKU</div>
+        <p class="catalogo__desc">
+          Protocolo probatório que sustenta a camada de evidência: <strong>DecisionID</strong>,
+          hashes de input/output, <code class="inline">policy_snapshot_hash</code>, assinatura
+          KMS-bound, chain hash. Instancia-se via produtos — não é vendido isoladamente.
+          REX Guard, Shield e Umbrella compartilham o mesmo substrato; é o que torna a evidência
+          interoperável entre módulos.
+        </p>
+        <div class="catalogo__rodape"><strong>Primitiva ·</strong> SealedRecibo · ThoughtSignatureReceipt (Shield)</div>
+      </div>
+
+      <div class="catalogo__card">
+        <div class="catalogo__cabecalho">
+          <h3 class="catalogo__nome">BurnEngine</h3>
+          <span class="badge badge--producao">Em produção</span>
+        </div>
+        <div class="catalogo__tipo">Kill-switch regulatório · inviolável por arquitetura</div>
+        <p class="catalogo__desc">
+          Conjunto de portões regulatórios com quatro estados nominados:
+          <code class="inline">APPROVE</code>, <code class="inline">FLAG_REVIEW</code>,
+          <code class="inline">FREEZE_ASSETS</code>, <code class="inline">BURN_IMMEDIATE</code>.
+          Triagem de sanções internacionais. O nome <em>BurnEngine</em> refere-se à propriedade
+          arquitetural — uma vez disparado, o caminho não admite override sem rastreio criptográfico.
+        </p>
+        <div class="catalogo__rodape"><strong>Buyer ·</strong> Compliance, AML, sanctions, ouvidoria regulatória</div>
+      </div>
+
+      <div class="catalogo__card">
+        <div class="catalogo__cabecalho">
+          <h3 class="catalogo__nome">Guardian AI</h3>
+          <span class="badge badge--producao">Em produção</span>
+        </div>
+        <div class="catalogo__tipo">Mascaramento PII no perímetro · runtime</div>
+        <p class="catalogo__desc">
+          Camada de governança sobre modelos de IA com mascaramento de PII em tempo real no
+          perímetro do cliente. Determinística, com fail-closed em falha do regex engine.
+          Opera como gate de entrada e como re-validação de saída dentro de REX Guard e como
+          serviço independente para pipelines que não passam pelo proxy.
+        </p>
+        <div class="catalogo__rodape"><strong>Buyer ·</strong> DPO, segurança de dados, engenharia de plataforma</div>
+      </div>
+
+      <div class="catalogo__card">
+        <div class="catalogo__cabecalho">
+          <h3 class="catalogo__nome">VEX-OS</h3>
+          <span class="badge badge--roadmap">Roadmap</span>
+        </div>
+        <div class="catalogo__tipo">Console operacional de governança · camada de consumo</div>
+        <p class="catalogo__desc">
+          Console onde a evidência criptográfica produzida pela suíte FoundLab vira governança
+          operacional defensável. <em>Drill-down</em> em DecisionID, verificação de cadeia Merkle
+          on-screen, RBAC enterprise e <em>evidence pack export</em> em roadmap. Camada de consumo;
+          depende dos módulos produtores de evidência para entregar valor.
+        </p>
+        <div class="catalogo__rodape"><strong>Buyer ·</strong> CISO, head de auditoria, board risk committee</div>
+      </div>
+
+      <div class="catalogo__card">
+        <div class="catalogo__cabecalho">
+          <h3 class="catalogo__nome">REX <em>(Rationale Extraction)</em></h3>
+          <span class="badge badge--embedded">Embedded</span>
+        </div>
+        <div class="catalogo__tipo">Capability embutida · Real-time Rationale Extraction</div>
+        <p class="catalogo__desc">
+          Geração de <em>rationale</em> narrativo PT/EN para cada decisão de IA, atendendo à
+          exigência de Explainable AI (XAI) regulatório. Embutida em REX Guard Gemini; promovível
+          a SKU standalone mediante RFC dedicado, contrato de API próprio e integração isolável.
+          Não confundir com REX Guard, que é o produto envolvente.
+        </p>
+        <div class="catalogo__rodape"><strong>Promoção a SKU ·</strong> Roadmap — sob RFC dedicado</div>
+      </div>
+
+    </div>
+
+    <div class="legenda-status">
+      <span style="font-weight:700;color:var(--ink)">Maturidade declarada:</span>
+      <div class="legenda-status__item"><div class="legenda-status__cor" style="border-color:var(--ink);background:var(--paper-3)"></div>Tier-1 em produção</div>
+      <div class="legenda-status__item"><div class="legenda-status__cor" style="border-color:var(--green)"></div>Em produção</div>
+      <div class="legenda-status__item"><div class="legenda-status__cor" style="border-color:var(--amber)"></div>Em maturação</div>
+      <div class="legenda-status__item"><div class="legenda-status__cor" style="border-color:var(--plum)"></div>Blueprint (spec, zero código)</div>
+      <div class="legenda-status__item"><div class="legenda-status__cor" style="border-color:var(--gold-dim)"></div>Substrato</div>
+      <div class="legenda-status__item"><div class="legenda-status__cor" style="border-color:var(--slate)"></div>Embedded</div>
+      <div class="legenda-status__item"><div class="legenda-status__cor" style="border-color:var(--ink-faint)"></div>Roadmap</div>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <div class="corpo" style="margin-top:48px">
+      <h4 class="subtitulo">Por que a maturidade é declarada</h4>
+      <p>
+        O portfólio da FoundLab tem evolução institucional clara: REX Guard Gemini é o produto que
+        valida a tese em produção; Shield e LoopShield estendem o alcance defensivo para wedges de
+        ciclo comercial curto e governança de agent loops; Umbrella, BurnEngine e Guardian AI são
+        camadas operacionais já em produção; Veritas é o substrato criptográfico que torna tudo
+        interoperável; VEX-OS é a camada de consumo da evidência produzida. Cada um carrega seu
+        próprio nível de prontidão, declarado explicitamente. Comunicação institucional não promove
+        capacidade acima da maturidade declarada.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- CAMADA IV — TRÊS PILARES                                      -->
+<!-- ============================================================ -->
+<section class="camada" id="cap-4" data-num="IV" data-label="Pilares" data-titulo="Três invariantes">
+  <div class="wrap revelar">
+    <header class="camada__abertura">
+      <div class="camada__num">Camada IV · Os três pilares</div>
+      <h2 class="camada__titulo">Consent-Bound · Zero-Persistence · Cryptographic Audit Trail</h2>
+      <p class="camada__sub">Cada pilar é um invariante operacional, não uma promessa de design.</p>
+    </header>
+
+    <div class="corpo">
+
+      <h3 class="marca">Pilar I · Consent-Bound Inference</h3>
+      <p>
+        Nenhuma chamada ao modelo é executada sem validação prévia de consentimento ativo. O escopo é
+        derivado da plataforma <span class="termo" tabindex="0">OPIN<span class="termo__balao"><strong>OPIN</strong>Open Insurance / Open Finance Brasil. Plataforma de portabilidade de dados financeiros consentidos pelo titular, com escopos formais e expiração explícita.</span></span>,
+        com cache em Cloud Memorystore Redis (TTL de 60 segundos) e comportamento
+        <strong>fail-closed</strong> em caso de ausência, expiração ou falha de
+        consulta. O <code>ConsentValidator</code> é sempre o primeiro passo da pipeline; nenhum
+        <em>fallback</em> permissivo é admitido. <em>Payload types</em> não mapeados retornam
+        <code>SCOPE_MISMATCH</code> — nunca <code>ALLOWED</code>.
+      </p>
+
+      <h3 class="marca">Pilar II · Zero-Persistence</h3>
+      <p>
+        Dados de PII processados durante a inferência nunca persistem em disco. A execução ocorre
+        exclusivamente em memória volátil, com <code>shredBuffer()</code> e <code>requestGC()</code>
+        invocados em todos os caminhos de saída, inclusive em caminhos de erro e exceção. O container
+        Cloud Run executa Node.js com a flag <code>--expose-gc</code> como requisito obrigatório, e
+        a ausência da flag é tratada como falha de provisionamento. O que sai do perímetro do REX
+        Guard é o recibo selado e a resposta para o cliente; o payload se desfaz.
+      </p>
+
+      <h3 class="marca">Pilar III · Cryptographic Audit Trail</h3>
+      <p>
+        Cada inferência produz um <em>SealedRecibo</em> assinado com
+        <span class="termo" tabindex="0">ECDSA P-256<span class="termo__balao"><strong>ECDSA P-256</strong>Algoritmo de assinatura digital sobre curva elíptica NIST P-256. Padrão amplamente aceito por reguladores e auditores; chave permanece em HSM, apenas a operação é exposta.</span></span>
+        via Cloud <span class="termo" tabindex="0">KMS HSM<span class="termo__balao"><strong>Cloud KMS HSM</strong>Hardware Security Module gerenciado pelo Google Cloud. Material da chave nunca sai do hardware; operações de assinatura ocorrem dentro do módulo.</span></span>,
+        encadeado em uma cadeia Merkle atômica via Cloud
+        <span class="termo" tabindex="0">Spanner<span class="termo__balao"><strong>Cloud Spanner</strong>Banco relacional globalmente distribuído do GCP, com transações serializáveis e commit timestamp TrueTime.</span></span>
+        com commit timestamp
+        <span class="termo" tabindex="0">TrueTime<span class="termo__balao"><strong>TrueTime</strong>Noção de tempo globalmente coerente do Google, com limite de incerteza garantido. No Spanner, expõe-se como commit timestamp determinístico por transação.</span></span>,
+        e persistido em BigQuery
+        <span class="termo" tabindex="0">WORM<span class="termo__balao"><strong>WORM</strong>Write Once Read Many. Em BigQuery, partição configurada para vedar UPDATE e DELETE; somente append e leitura.</span></span>
+        particionado para retenção imutável. O acesso de auditoria é
+        servido por papel IAM segregado, com leitura sob trilha própria.
+      </p>
+
+      <hr class="separador" />
+
+      <p>
+        Os três pilares não são camadas opcionais. Eles compõem o <em>contrato fail-closed</em> do
+        produto. A violação de qualquer um deles, em qualquer ponto da pipeline, deve interromper a
+        chamada — não degradá-la silenciosamente.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- CAMADA V — EVIDÊNCIA DE PRODUÇÃO                              -->
+<!-- ============================================================ -->
+<section class="camada" id="cap-5" data-num="V" data-label="Evidência" data-titulo="Produção Tier-1 auditada">
+  <div class="wrap revelar">
+    <header class="camada__abertura">
+      <div class="camada__num">Camada V · Evidência de produção</div>
+      <h2 class="camada__titulo">A <em>tese</em> não é hipótese</h2>
+      <p class="camada__sub">Números auditados em ambiente Tier-1, operação contínua desde Q4 2025.</p>
+    </header>
+
+    <div class="corpo">
+      <p>
+        REX Guard opera em produção em instituição financeira Tier-1 brasileira do segmento de
+        corretagem e gestão de ativos, desde o quarto trimestre de 2025. Os números abaixo são
+        medidos em ambiente real, auditados e revisados periodicamente. Identidade do cliente
+        omitida por compromisso contratual.
+      </p>
+    </div>
+  </div>
+
+  <div class="wrap-wide revelar">
+    <div class="evidencia">
+      <div class="evidencia__bloco">
+        <div class="evidencia__valor">98,7<sup>%</sup></div>
+        <div class="evidencia__delta">Redução</div>
+        <div class="evidencia__label">Ciclo de compliance regulatório<br/>de 21h para 16 min por decisão</div>
+      </div>
+      <div class="evidencia__bloco">
+        <div class="evidencia__valor">94<sup>%</sup></div>
+        <div class="evidencia__delta">Redução</div>
+        <div class="evidencia__label">Taxa de erro em decisão automatizada<br/>de 42% para 2,5%</div>
+      </div>
+      <div class="evidencia__bloco">
+        <div class="evidencia__valor">100<sup>%</sup></div>
+        <div class="evidencia__delta">Cobertura</div>
+        <div class="evidencia__label">Transações com DecisionID único,<br/>hash encadeado e rationale estruturado</div>
+      </div>
+    </div>
+
+    <p class="evidencia__contexto">
+      <strong>Ambiente</strong> · Instituição Tier-1 · corretagem e gestão de ativos<br/>
+      <strong>Operação contínua</strong> · Desde Q4 2025 · <strong>Cliente</strong> · sob NDA
+    </p>
+  </div>
+
+  <div class="wrap">
+    <div class="corpo">
+      <p>
+        Estes números têm leitura institucional clara: o ciclo de compliance, que antes consumia
+        21 horas por decisão revisada em processo manual, passou a operar em 16 minutos sob a camada
+        de evidência. A taxa de erro caiu por desenho — o que antes dependia de interpretação humana
+        passou a operar contra um conjunto de invariantes verificáveis. E cem por cento das
+        transações que atravessam a pipeline carregam, hoje, um DecisionID único com rationale
+        estruturado e encadeamento criptográfico.
+      </p>
+
+      <p>
+        Não há, na operação atual, retorno HTTP positivo sem recibo selado. Não há recibo selado sem
+        encadeamento atômico contra a cadeia anterior. Não há encadeamento sem commit timestamp
+        TrueTime. A operação Tier-1 é a prova de campo de que esses invariantes operam sob carga
+        real, em conformidade contratual com instituição regulada.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- CAMADA VI — PIPELINE                                          -->
+<!-- ============================================================ -->
+<section class="camada" id="cap-6" data-num="VI" data-label="Pipeline" data-titulo="Nove pontos materiais">
+  <div class="wrap revelar">
+    <header class="camada__abertura">
+      <div class="camada__num">Camada VI · Pipeline de inferência</div>
+      <h2 class="camada__titulo">Nove pontos <em>materiais</em>. Seis deles fail-closed.</h2>
+      <p class="camada__sub">A descrição linear de <code class="inline">POST /v1/infer</code> e do que acontece quando ele falha.</p>
+    </header>
+
+    <div class="corpo">
+      <p>
+        A pipeline <code>POST /v1/infer</code> é a superfície pública do produto. Ela orquestra nove
+        passos sequenciais. Os passos um, dois, três, quatro, seis e nove são <strong>pontos
+        materiais</strong> de checagem — qualquer falha em qualquer um deles encerra a requisição
+        como <code>BLOCKED</code>, sem invocar o Vertex AI. Os passos cinco, sete e oito são
+        determinísticos e produzem evidência. Os portões pré-inferência garantem que o Gemini sequer
+        recebe o pedido se a checagem falhar.
+      </p>
+    </div>
+  </div>
+
+  <div class="wrap-wide">
+    <div class="pipeline revelar" id="pipeline" aria-label="Diagrama da pipeline de inferência">
+      <div class="pipeline__limite">Cliente — request + consent_id</div>
+
+      <div class="pipeline__trilho">
+        <div class="pipeline__pulso" aria-hidden="true"></div>
+
+        <div class="passo">
+          <div class="passo__num">01</div>
+          <div class="passo__nome">ConsentValidator <code>Pilar I</code></div>
+          <p class="passo__desc">Verifica consentimento ativo via cache Redis (TTL 60s) com fallback para API OPIN. Resolve escopo. Tipos não mapeados retornam <code class="inline">SCOPE_MISMATCH</code>.</p>
+          <div class="passo__falha">Falha → BLOCKED · Gemini não é invocado</div>
+        </div>
+
+        <div class="passo">
+          <div class="passo__num">02</div>
+          <div class="passo__nome">Guardian AI · PII <code>gate de entrada</code></div>
+          <p class="passo__desc">Máscara de CPF, CNPJ e e-mail no prompt de entrada. Determinística, regex-based, com fail-closed em falha do regex engine.</p>
+          <div class="passo__falha">Falha → BLOCKED</div>
+        </div>
+
+        <div class="passo">
+          <div class="passo__num">03</div>
+          <div class="passo__nome">SecurityGates · OFAC</div>
+          <p class="passo__desc">Triagem contra listas de sanções. Estado atual com integração via stub; produção exige API real antes de tráfego com dados reais.</p>
+          <div class="passo__falha">Falha → BLOCKED</div>
+        </div>
+
+        <div class="passo">
+          <div class="passo__num">04</div>
+          <div class="passo__nome">BurnEngine <code>kill-switch regulatório</code></div>
+          <p class="passo__desc">Avaliação contra estados <code class="inline">APPROVE</code>, <code class="inline">FLAG_REVIEW</code>, <code class="inline">FREEZE_ASSETS</code>, <code class="inline">BURN_IMMEDIATE</code>. Detecção de <em>prompt injection</em> e jailbreak. Inviolável por arquitetura.</p>
+          <div class="passo__falha">Falha → BLOCKED</div>
+        </div>
+
+        <div class="passo">
+          <div class="passo__num">05</div>
+          <div class="passo__nome">Guardian AI · Vertex AI Gemini</div>
+          <p class="passo__desc">Invocação do modelo via endpoint Vertex AI. Três tentativas, timeout de 20 segundos, propagação de erro <em>upstream</em>. Latência dominante da pipeline.</p>
+          <div class="passo__falha">Falha → BLOCKED</div>
+        </div>
+
+        <div class="passo">
+          <div class="passo__num">06</div>
+          <div class="passo__nome">Output Validation <code>gate de saída</code></div>
+          <p class="passo__desc">Re-aplicação dos portões sobre a saída do modelo: PII residual, OFAC, conteúdo nocivo. Bloqueio se o modelo gerou o que o gate de entrada havia barrado por escopo.</p>
+          <div class="passo__falha">Falha → BLOCKED · resposta não é devolvida</div>
+        </div>
+
+        <div class="passo">
+          <div class="passo__num">07</div>
+          <div class="passo__nome">ChainHeadRepository <code>Spanner atomic TX</code></div>
+          <p class="passo__desc">Leitura do <em>prev_hash</em> e escrita do novo hash dentro de uma única transação serializável (<code class="inline">runTransactionAsync</code>). Sem possibilidade de fork concorrente. <em>Commit timestamp</em> TrueTime é a única fonte de ordenação.</p>
+          <div class="passo__falha">Falha → BLOCKED · sem recibo</div>
+        </div>
+
+        <div class="passo">
+          <div class="passo__num">08</div>
+          <div class="passo__nome">ReciboSigner · seal <code>ECDSA P-256 raw r∥s</code></div>
+          <p class="passo__desc">Assinatura digital do recibo via Cloud KMS HSM. Formato raw <code class="inline">r∥s</code> (64 bytes), nunca DER. Conversão por <code class="inline">derToRawHex()</code>.</p>
+          <div class="passo__falha">Falha → BLOCKED</div>
+        </div>
+
+        <div class="passo passo--final">
+          <div class="passo__num">09</div>
+          <div class="passo__nome">AuditOutbox · enqueue</div>
+          <p class="passo__desc">Insert síncrono em Spanner antes do retorno HTTP; <em>flush</em> assíncrono para BigQuery WORM a cada 5 segundos. A durabilidade do Spanner cobre a janela.</p>
+          <div class="passo__falha">Falha de enqueue → BLOCKED · propaga ao catch principal</div>
+        </div>
+
+      </div>
+
+      <div class="pipeline__limite pipeline__limite--fim">Cliente — response + DecisionID + SealedRecibo</div>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <div class="corpo">
+      <p>
+        Pipeline é fail-closed em <strong>seis dos seis pontos materiais</strong>. Nenhum passo pode
+        falhar silenciosamente. <em>Constructor injection</em> está presente em todos os serviços
+        críticos — <code>InferenceEngine</code>, <code>ConsentValidator</code>, <code>BurnEngine</code>,
+        <code>ReciboSigner</code>, <code>ChainHeadRepository</code>, <code>AuditOutbox</code>,
+        <code>SecurityGates</code>, <code>AppealService</code> — o que permite injeção completa de
+        dependências em testes unitários e verificação independente do comportamento de cada
+        invariante.
+      </p>
+
+      <p>
+        O frontend é exportado como artefato estático Next.js puro: sem SSR, sem
+        <em>API routes</em>, sem possibilidade de <em>bypass</em> do backend Fastify por superfície
+        alternativa. CORS é restritivo em produção e permissivo apenas no ambiente de desenvolvimento
+        local. A única superfície de chamada para o pipeline é a rota HTTP autenticada.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- CAMADA VII — TRUETIME                                         -->
+<!-- ============================================================ -->
+<section class="camada" id="cap-7" data-num="VII" data-label="TrueTime" data-titulo="Cadeia Merkle">
+  <div class="wrap revelar">
+    <header class="camada__abertura">
+      <div class="camada__num">Camada VII · TrueTime e cadeia Merkle</div>
+      <h2 class="camada__titulo">A ordem do tempo é uma <em>propriedade física</em></h2>
+      <p class="camada__sub">Por que o commit timestamp do Spanner é a única fonte de tempo válida em paths de auditoria.</p>
+    </header>
+
+    <div class="corpo">
+      <p class="abertura-paragrafo">
+        Auditoria pressupõe ordenação. Sem ordem monotônica entre eventos, não é possível afirmar que
+        a decisão A precedeu a decisão B, ou que o recibo selado nunca foi reescrito após o fato.
+        REX Guard adota o commit timestamp do Cloud Spanner como única fonte de tempo em
+        caminhos de auditoria.
+      </p>
+
+      <p>
+        O Cloud Spanner expõe o TrueTime — uma noção globalmente coerente de tempo, garantida pela
+        infraestrutura do Google, que retorna um <em>commit timestamp</em> determinístico a cada
+        transação. Esse timestamp é gravado dentro da própria transação de avanço da chain head,
+        garantindo que a leitura do <code>prev_hash</code> e a escrita do novo hash sejam atômicas
+        e que o relógio anexado à decisão seja exatamente o relógio da escrita.
+      </p>
+
+      <p>
+        A consequência prática é que <code>new Date()</code> é literalmente proibido em qualquer
+        path de auditoria. Não como questão de estilo, mas porque o relógio de um container Cloud Run
+        pode divergir, retroceder ou ser manipulado, e usá-lo para selar um recibo destrói a garantia
+        de monotonicidade. A diferença, em disputa regulatória, é a diferença entre evidência
+        criptográfica e afirmação narrativa.
+      </p>
+
+      <h4 class="subtitulo">Cadeia Merkle — três decisões consecutivas</h4>
+      <p style="font-size:15px;color:var(--ink-faint);font-style:italic;margin-bottom:0">Passe o cursor sobre um nó para isolar o contexto.</p>
+    </div>
+  </div>
+
+  <div class="wrap-wide">
+    <div class="cadeia revelar" role="img" aria-label="Visualização de três nós consecutivos da cadeia Merkle">
+      <div class="cadeia__inner">
+
+        <div class="cadeia__no" tabindex="0">
+          <div class="cadeia__label">Decisão n−1</div>
+          <div class="cadeia__hash">9f3a8c…d27b</div>
+          <div class="cadeia__campo"><span>prev_hash</span><span>2e7b…f014</span></div>
+          <div class="cadeia__campo"><span>commit_ts</span><span>1747332801.213</span></div>
+          <div class="cadeia__campo"><span>signed</span><span>r∥s · KMS</span></div>
+        </div>
+
+        <div class="cadeia__no is-ativo" tabindex="0">
+          <div class="cadeia__label">Decisão n · atual</div>
+          <div class="cadeia__hash">a1c4b6…7e9d</div>
+          <div class="cadeia__campo"><span>prev_hash</span><span>9f3a8c…d27b</span></div>
+          <div class="cadeia__campo"><span>commit_ts</span><span>1747332801.846</span></div>
+          <div class="cadeia__campo"><span>signed</span><span>r∥s · KMS</span></div>
+        </div>
+
+        <div class="cadeia__no" tabindex="0">
+          <div class="cadeia__label">Decisão n+1</div>
+          <div class="cadeia__hash">6e0d22…5b3c</div>
+          <div class="cadeia__campo"><span>prev_hash</span><span>a1c4b6…7e9d</span></div>
+          <div class="cadeia__campo"><span>commit_ts</span><span>1747332802.117</span></div>
+          <div class="cadeia__campo"><span>signed</span><span>r∥s · KMS</span></div>
+        </div>
+
+      </div>
+      <div class="cadeia__legenda">Cada nó referencia o hash da decisão anterior · TrueTime monotônico · ECDSA por elo</div>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <div class="corpo">
+      <p>
+        Cada nó da cadeia carrega o hash da decisão anterior. Reescrever uma decisão exige reescrever
+        todas as subsequentes, e qualquer reescrita produz divergência detectável contra o conjunto
+        já <em>flushado</em> para BigQuery WORM. A ChainHead em si vive em uma única linha do Spanner,
+        protegida por transação serializável — ela não pode bifurcar.
+      </p>
+
+      <p>
+        A operação <code>getAndAdvance()</code> executa via <code class="inline">runTransactionAsync</code>,
+        garantindo atomicidade entre leitura do <code>prev_hash</code> e gravação do novo hash. Não
+        existe um caminho onde a transação falha mas a chain head avança — falha em qualquer ponto
+        propaga como <code>BLOCKED</code>. Não existe fallback para <code>new Date()</code> caso o
+        Spanner não devolva o commit timestamp; isso seria simultaneamente uma violação de
+        fail-closed e de TrueTime, e o desenho do produto rejeita explicitamente ambos os relaxamentos.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- CAMADA VIII — SEALED RECIBO                                   -->
+<!-- ============================================================ -->
+<section class="camada" id="cap-8" data-num="VIII" data-label="SealedRecibo" data-titulo="Contrato da evidência">
+  <div class="wrap revelar">
+    <header class="camada__abertura">
+      <div class="camada__num">Camada VIII · SealedRecibo</div>
+      <h2 class="camada__titulo">O <em>contrato</em> da evidência por decisão</h2>
+      <p class="camada__sub">Schema, assinatura, e a abstração Veritas Protocol que generaliza o esquema.</p>
+    </header>
+
+    <div class="corpo">
+      <p>
+        O SealedRecibo é o objeto canônico de evidência produzido pelo REX Guard para cada inferência
+        concluída. Ele cumpre quatro funções simultâneas: identifica a decisão de forma imutável,
+        retém a narrativa da decisão sem reter o payload sensível, ancora criptograficamente o
+        encadeamento com a decisão anterior, e é assinado por uma chave HSM-bound cuja versão é
+        verificável.
+      </p>
+
+      <h4 class="subtitulo">Schema canônico</h4>
+    </div>
+
+    <div class="recibo revelar">
+      <div class="recibo__topo">
+        <span><strong>SealedRecibo</strong> · objeto JSON imutável</span>
+        <span>ECDSA P-256 · raw r∥s</span>
+      </div>
+      <div class="recibo__corpo">
+<pre><span class="rs">{</span>
+  <span class="rk">"decision_id"</span>: <span class="rv">"REX-7F2E-A19C-8B04-D3"</span>,
+  <span class="rk">"policy_snapshot_hash"</span>: <span class="rv">"sha256:b41d…9c2a"</span>,        <span class="rcomment">// governança reproduzível</span>
+  <span class="rk">"input_hash"</span>: <span class="rv">"sha256:8e02…4f17"</span>,                  <span class="rcomment">// payload jamais armazenado</span>
+  <span class="rk">"output_hash"</span>: <span class="rv">"sha256:c19b…3aa0"</span>,
+  <span class="rk">"consent_id"</span>: <span class="rv">"OPIN-CN-019283"</span>,
+  <span class="rk">"scope"</span>: <span class="rv">"account_summary"</span>,
+  <span class="rk">"model"</span>: <span class="rv">"gemini-1.5-pro@v002"</span>,
+  <span class="rk">"prev_chain_hash"</span>: <span class="rv">"9f3a8c…d27b"</span>,                  <span class="rcomment">// elo anterior na cadeia</span>
+  <span class="rk">"seal_timestamp"</span>: <span class="rt">spanner.commit_timestamp</span>,         <span class="rcomment">// TrueTime, nunca new Date()</span>
+  <span class="rk">"user_readable_summary"</span>: <span class="rv">"Resposta gerada com base no escopo</span>
+                            <span class="rv">  de saldo consentido, sem PII residual."</span>,
+  <span class="rk">"signature"</span>: <span class="rv">"</span><span class="rn">r∥s</span><span class="rv">"</span>,                                <span class="rcomment">// 64 bytes raw, KMS HSM</span>
+  <span class="rk">"kms_key_version"</span>: <span class="rv">"projects/foundlab-ati/.../cryptoKeys/.../1"</span>
+<span class="rs">}</span></pre>
+      </div>
+    </div>
+
+    <div class="corpo">
+      <p>
+        Três campos merecem atenção. Primeiro, <code>policy_snapshot_hash</code> ancora a
+        <em>versão exata</em> da política sob a qual a decisão foi tomada — um auditor pode reconstruir
+        a regra que estava vigente sem confiar no log narrativo. Segundo, <code>input_hash</code> e
+        <code>output_hash</code> permitem que um verificador independente confirme que aquela decisão
+        cobriu aquele payload, mesmo sem reter o payload. Terceiro, <code>user_readable_summary</code>
+        é o resumo legível em português brasileiro exigido pelo Art. 32 da BCB 538/2025, sempre
+        presente, sempre na língua do titular.
+      </p>
+
+      <h4 class="subtitulo">Veritas Protocol — a abstração</h4>
+      <p>
+        O esquema acima é a instanciação concreta de um protocolo de evidência mais geral, internamente
+        denominado <strong>Veritas Protocol</strong>. Ele define a semântica do <em>DecisionID</em>
+        como identificador imutável, do <em>rationale</em> selado como narrativa da decisão sem
+        retenção de payload, dos <em>hashes</em> de entrada e saída como ancoragem criptográfica, do
+        <em>policy snapshot hash</em> como reprodutibilidade de governança, da assinatura
+        <em>KMS-bound</em> como não-repúdio, e do <em>chain hash</em> como elo monotônico dentro do
+        domínio de governança. A separação entre protocolo e produto é deliberada: o mesmo esquema
+        pode ser instanciado por outros módulos da suíte — Shield, por exemplo, instancia uma
+        variante chamada <code class="inline">ThoughtSignatureReceipt</code>, específica para
+        custódia de <em>thought signatures</em> do Gemini 3.
+      </p>
+
+      <h4 class="subtitulo">Por que ECDSA raw e por que HSM</h4>
+      <p>
+        O formato de assinatura é raw <code>r∥s</code>, 128 caracteres hexadecimais correspondentes a
+        64 bytes, e não o formato DER (140-144 caracteres) comumente devolvido por bibliotecas de
+        terceiros. A escolha é por verificabilidade: o formato raw elimina ambiguidade de codificação
+        para verificadores externos. A chave nunca é exportada — ela vive em hardware (Cloud KMS HSM),
+        e o que circula é apenas a operação de assinatura. A versão da chave é gravada no recibo, de
+        modo que rotação não invalida a verificação histórica.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- CAMADA IX — AUDITORIA IMUTÁVEL                                -->
+<!-- ============================================================ -->
+<section class="camada" id="cap-9" data-num="IX" data-label="Auditoria" data-titulo="AuditOutbox · WORM">
+  <div class="wrap revelar">
+    <header class="camada__abertura">
+      <div class="camada__num">Camada IX · Auditoria imutável</div>
+      <h2 class="camada__titulo">Durabilidade antes da resposta. <em>Flush</em> em background.</h2>
+      <p class="camada__sub">O padrão outbox que protege a continuidade da evidência diante de falhas de instância.</p>
+    </header>
+
+    <div class="corpo">
+      <p class="abertura-paragrafo">
+        Auditoria não tolera <em>fire-and-forget</em>. Se um recibo é assinado mas perdido no caminho
+        para o repositório imutável, a cadeia é silenciosamente corrompida. O padrão adotado é
+        AuditOutbox: persistência síncrona em Cloud Spanner antes do retorno HTTP, com flush
+        assíncrono para BigQuery WORM — o <em>Veritas Ledger</em>.
+      </p>
+
+      <p>
+        A inserção do recibo na tabela de outbox do Spanner é parte do contrato de sucesso da
+        requisição. Se a inserção falha, a chamada falha — o cliente recebe <code>BLOCKED</code> e
+        nenhuma resposta de inferência é devolvida. Isso fecha o caminho onde o modelo respondeu,
+        mas a evidência não foi gravada.
+      </p>
+
+      <p>
+        Um job de background, com cadência de cinco segundos, lê os recibos pendentes no Spanner e
+        os promove para a tabela WORM-partitioned no BigQuery, dedicada ao trilho regulatório. A
+        retenção é imutável: BigQuery WORM não admite <code>UPDATE</code> nem <code>DELETE</code>
+        sobre as partições seladas; admite apenas <em>append</em>.
+      </p>
+
+      <p>
+        A janela de risco operacional, em caso de <em>kill</em> abrupto de uma instância Cloud Run
+        entre a gravação no Spanner e o flush para BigQuery, é de cinco a dez segundos. Isso é
+        coberto pelas garantias de durabilidade do Spanner — a evidência sobrevive à instância. A
+        janela é documentada como risco operacional aceitável.
+      </p>
+
+      <h4 class="subtitulo">Acesso de auditoria</h4>
+      <p>
+        O acesso de leitura ao repositório auditável é mediado por papel IAM dedicado
+        (<code class="inline">bcb-audit-reader</code>), distinto dos papéis de operação do produto.
+        Toda leitura é registrada em trilha própria, de modo que o acesso do auditor é, ele mesmo,
+        auditável. A separação de papéis é uma exigência de princípio: quem opera não lê o
+        repositório selado, e quem audita não opera.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- CAMADA X — CONTESTAÇÃO                                        -->
+<!-- ============================================================ -->
+<section class="camada" id="cap-10" data-num="X" data-label="Contestação" data-titulo="Direito de revisão">
+  <div class="wrap revelar">
+    <header class="camada__abertura">
+      <div class="camada__num">Camada X · Direito de contestação</div>
+      <h2 class="camada__titulo">Quando a decisão é <em>contestável</em>, o contraditório é uma rota técnica</h2>
+      <p class="camada__sub">A implementação do Art. 32 §2 da BCB 538/2025 e do Art. 20 da LGPD como <code class="inline">/v1/appeal</code>.</p>
+    </header>
+
+    <div class="corpo">
+      <p>
+        Dois dispositivos regulatórios convergem no direito de contestação sobre decisões
+        automatizadas: o Art. 32 §2 da BCB 538/2025, e o Art. 20 da LGPD (direito à revisão de
+        decisões automatizadas com rationale auditável). REX Guard implementa esse direito como
+        rota técnica nominada, <code>POST /v1/appeal</code>, e não como processo paralelo informal.
+      </p>
+
+      <p>
+        A rota recebe a referência ao <code>decision_id</code> e o motivo do recurso. O motivo
+        — campo <code>appeal_reason</code> — passa por <strong>field-level encryption</strong> via
+        Cloud KMS antes de qualquer persistência. Isso significa que mesmo quem tem acesso de
+        leitura ao repositório de recursos só consegue ler o conteúdo após decryption explícita,
+        mediada por papel IAM separado.
+      </p>
+
+      <p>
+        O caminho do appeal é fail-closed nos mesmos termos da pipeline de inferência. Falha de
+        KMS interrompe a gravação; falha de Spanner interrompe a cadeia de eventos de contestação;
+        falha do registro no trilho auditável interrompe o reconhecimento do recurso. O cliente
+        recebe a confirmação de protocolo somente quando todos os eventos durables se completaram.
+      </p>
+
+      <p>
+        O recibo selado original do <code>decision_id</code> contestado permanece imutável — o
+        appeal não modifica a evidência da decisão, ele instaura um novo evento, encadeado à
+        decisão original, que carrega seu próprio recibo. O auditor pode, com isso, reconstruir
+        toda a trajetória: a decisão automatizada inicial, o motivo da contestação, o
+        encaminhamento humano e a decisão final, cada elo com seu timestamp TrueTime e sua
+        assinatura HSM.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- CAMADA XI — LIMITES                                           -->
+<!-- ============================================================ -->
+<section class="camada" id="cap-11" data-num="XI" data-label="Limites" data-titulo="SLO e postura de falha">
+  <div class="wrap revelar">
+    <header class="camada__abertura">
+      <div class="camada__num">Camada XI · Limites operacionais</div>
+      <h2 class="camada__titulo">O que o sistema <em>promete</em>, e o que ele declaradamente não promete</h2>
+      <p class="camada__sub">Latência, disponibilidade, postura de retry e o que está fora do escopo da camada.</p>
+    </header>
+
+    <div class="corpo">
+      <p class="abertura-paragrafo">
+        Toda camada de infraestrutura crítica precisa declarar seus limites com a mesma seriedade
+        com que declara suas capacidades. Sem isso, qualquer conversa com auditoria, conselho ou
+        parceiro de nuvem se sustenta em pressuposto, não em contrato.
+      </p>
+    </div>
+
+    <div class="wrap-wide">
+      <div class="limites revelar">
+        <div class="limites__celula">
+          <div class="limites__label">SLO de disponibilidade</div>
+          <div class="limites__valor">99,9 <sub>%</sub></div>
+          <p class="limites__nota">Por endpoint, mensurado em Cloud Logging. Monitoramento contínuo conforme Art. 14 da BCB 538/2025.</p>
+        </div>
+
+        <div class="limites__celula">
+          <div class="limites__label">Target p95 de latência</div>
+          <div class="limites__valor">520 <sub>ms</sub></div>
+          <p class="limites__nota">Meta de pipeline completa, end-to-end. Validação em staging com tráfego sintético precede go-live; otimização operacional sob owner definido.</p>
+        </div>
+
+        <div class="limites__celula">
+          <div class="limites__label">Retry policy · Vertex AI</div>
+          <div class="limites__valor">3 <sub>tentativas</sub></div>
+          <p class="limites__nota">Timeout total de 20 segundos. Falha após o terceiro retry propaga como BLOCKED, com motivo carimbado no SealedRecibo de erro.</p>
+        </div>
+
+        <div class="limites__celula">
+          <div class="limites__label">Janela de outbox</div>
+          <div class="limites__valor">5–10 <sub>seg</sub></div>
+          <p class="limites__nota">Cadência de flush Spanner → BigQuery WORM. Durabilidade Spanner cobre a janela. Risco operacional aceitável documentado.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="corpo">
+      <h4 class="subtitulo">O que o sistema declaradamente não promete</h4>
+      <p>
+        REX Guard não promete <strong>conformidade jurídica formal</strong>. A leitura linha-a-linha
+        da regulação apresentada na Camada XII é técnica, validada por reconciliação cruzada entre
+        dois agentes auditores independentes, e mapeia exigência regulatória a mecanismo técnico.
+        Validação jurídica plena é trilha separada, sob coordenação de área legal interna e parecer
+        externo quando aplicável.
+      </p>
+      <p>
+        REX Guard não promete <strong>infalibilidade do modelo de linguagem</strong>. A camada
+        garante que a chamada ao Gemini ocorra dentro do escopo consentido, que a saída seja
+        re-validada contra os mesmos portões, e que a decisão seja selada com prova criptográfica.
+        Não garante que o conteúdo gerado pelo modelo seja correto — essa é uma propriedade do
+        modelo, e a evidência é exatamente o que torna o erro investigável.
+      </p>
+      <p>
+        REX Guard não promete <strong>substituição de pentest independente</strong>. Auditoria
+        interna por reconciliação cruzada é robusta para descobrir gaps de arquitetura e
+        violações de invariantes, mas não substitui pentest de terceiros, que está previsto em
+        janela específica antes de cada onda de expansão.
+      </p>
+
+      <h4 class="subtitulo">Postura de falha — três regras</h4>
+      <p>
+        Primeira regra: qualquer falha de dependência GCP (KMS, Spanner, BigQuery, Redis, Vertex)
+        é tratada como <code>BLOCKED</code>. Não há caminho permissivo. Segunda regra: nenhum
+        passo da pipeline pode falhar silenciosamente; falha propaga até o catch principal e é
+        registrada com motivo carimbado. Terceira regra: o recibo de uma decisão bloqueada
+        também é selado e auditável — saber por que a chamada foi negada é parte da evidência.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- CAMADA XII — MAPA REGULATÓRIO EXPANDIDO                       -->
+<!-- ============================================================ -->
+<section class="camada" id="cap-12" data-num="XII" data-label="Regulatório" data-titulo="Mapa regulatório expandido">
+  <div class="wrap revelar">
+    <header class="camada__abertura">
+      <div class="camada__num">Camada XII · Mapa regulatório</div>
+      <h2 class="camada__titulo">Da resolução brasileira ao <em>NIST AI RMF</em></h2>
+      <p class="camada__sub">Mapeamento técnico do REX Guard contra a totalidade do plano regulatório aplicável. Validação jurídica é trilha separada.</p>
+    </header>
+
+    <div class="corpo">
+      <p>
+        A tabela abaixo correlaciona cada exigência regulatória aplicável com a implementação
+        técnica do REX Guard. Está organizada em quatro blocos: regulação brasileira (BCB, CMN,
+        LGPD), regulação europeia (EU AI Act, DORA, GDPR), regulação norte-americana (SOX, SR 11-7),
+        e frameworks de referência (NIST AI RMF). Estados parciais e lacunas estão anotados
+        explicitamente. A validação jurídica formal é trilha separada e não substituível pela
+        leitura técnica.
+      </p>
+
+      <div style="overflow-x:auto">
+      <table class="matriz">
+        <thead>
+          <tr>
+            <th>Norma</th>
+            <th>Requisito</th>
+            <th>Implementação</th>
+            <th>Estado</th>
+          </tr>
+        </thead>
+        <tbody>
+
+          <tr class="matriz__sep"><td colspan="4">Brasil — BCB 538/2025</td></tr>
+          <tr>
+            <td>Art. 12 §1º</td>
+            <td>Política documentada e aprovada</td>
+            <td>Documento de arquitetura vigente assinado pelo CTO; controle por versão.</td>
+            <td><span class="veredicto veredicto--ok">Compliant</span></td>
+          </tr>
+          <tr>
+            <td>Art. 13</td>
+            <td>Validação UAT</td>
+            <td>PoC com mil casos sintéticos, quatro cenários fail-closed obrigatórios.</td>
+            <td><span class="veredicto veredicto--ok">Compliant</span></td>
+          </tr>
+          <tr>
+            <td>Art. 14</td>
+            <td>Monitoramento contínuo</td>
+            <td>Cloud Logging com SLO de 99,9% por endpoint.</td>
+            <td><span class="veredicto veredicto--ok">Compliant</span></td>
+          </tr>
+          <tr>
+            <td>Art. 15 §1º</td>
+            <td>Auditoria contínua com TSA</td>
+            <td>BigQuery WORM e cadeia Merkle reais; integração TSA RFC 3161 em rota.</td>
+            <td><span class="veredicto veredicto--parcial">Parcial</span></td>
+          </tr>
+          <tr>
+            <td>Art. 15 §4º</td>
+            <td>Integridade do log com timestamp monotônico</td>
+            <td>ECDSA P-256 raw + Merkle atômica via Spanner TrueTime.</td>
+            <td><span class="veredicto veredicto--ok">Compliant</span></td>
+          </tr>
+          <tr>
+            <td>Art. 32 caput</td>
+            <td>Resumo legível ao usuário</td>
+            <td>Campo <code>user_readable_summary</code> presente em todo SealedRecibo.</td>
+            <td><span class="veredicto veredicto--ok">Compliant</span></td>
+          </tr>
+          <tr>
+            <td>Art. 32 §2º</td>
+            <td>Direito de contestação</td>
+            <td><code>POST /v1/appeal</code> com KMS field-level encryption e fail-closed.</td>
+            <td><span class="veredicto veredicto--ok">Compliant</span></td>
+          </tr>
+
+          <tr class="matriz__sep"><td colspan="4">Brasil — LGPD e CMN</td></tr>
+          <tr>
+            <td>LGPD Art. 18 VI</td>
+            <td>Direito à eliminação verificável</td>
+            <td>Zero-Persistence em pipeline; crypto-shredding sobre evidência mediante política.</td>
+            <td><span class="veredicto veredicto--ok">Compliant</span></td>
+          </tr>
+          <tr>
+            <td>LGPD Art. 20</td>
+            <td>Direito à revisão de decisões automatizadas</td>
+            <td>Rota <code>/v1/appeal</code> + rationale estruturado por DecisionID.</td>
+            <td><span class="veredicto veredicto--ok">Compliant</span></td>
+          </tr>
+          <tr>
+            <td>CMN 4.893/2021</td>
+            <td>Política de segurança cibernética</td>
+            <td>Fail-closed, KMS HSM, segregação IAM, monitoramento contínuo.</td>
+            <td><span class="veredicto veredicto--ok">Compliant</span></td>
+          </tr>
+
+          <tr class="matriz__sep"><td colspan="4">Europa — EU AI Act, DORA, GDPR</td></tr>
+          <tr>
+            <td>EU AI Act Art. 13</td>
+            <td>Transparência e fornecimento de informação</td>
+            <td>SealedRecibo expõe modelo, política, escopo, rationale e versão de chave.</td>
+            <td><span class="veredicto veredicto--mapeado">Mapeado</span></td>
+          </tr>
+          <tr>
+            <td>EU AI Act Art. 14</td>
+            <td>Supervisão humana</td>
+            <td>Rota de contestação técnica habilita supervisão estruturada por decisão.</td>
+            <td><span class="veredicto veredicto--mapeado">Mapeado</span></td>
+          </tr>
+          <tr>
+            <td>EU AI Act Art. 15</td>
+            <td>Acurácia, robustez, cibersegurança</td>
+            <td>Suite de testes Tier 1 e Tier 2; cobertura crítica enforced; HSM-bound.</td>
+            <td><span class="veredicto veredicto--mapeado">Mapeado</span></td>
+          </tr>
+          <tr>
+            <td>EU AI Act Art. 17</td>
+            <td>Sistema de gestão de qualidade</td>
+            <td>RACI documentado, versionamento de política, RFCs internos.</td>
+            <td><span class="veredicto veredicto--mapeado">Mapeado</span></td>
+          </tr>
+          <tr>
+            <td>DORA Art. 28</td>
+            <td>Gestão de risco de terceiros TIC</td>
+            <td>Documentação de dependências GCP, postura fail-closed em cada uma.</td>
+            <td><span class="veredicto veredicto--mapeado">Mapeado</span></td>
+          </tr>
+          <tr>
+            <td>DORA Art. 30</td>
+            <td>Continuidade e resiliência operacional</td>
+            <td>Outbox padrão + durabilidade Spanner; janela documentada.</td>
+            <td><span class="veredicto veredicto--mapeado">Mapeado</span></td>
+          </tr>
+
+          <tr class="matriz__sep"><td colspan="4">Estados Unidos — SOX, SR 11-7</td></tr>
+          <tr>
+            <td>SOX 302/906</td>
+            <td>Controle interno sobre relatório financeiro</td>
+            <td>Evidência criptográfica imutável por decisão; trilha de acesso segregada.</td>
+            <td><span class="veredicto veredicto--mapeado">Mapeado</span></td>
+          </tr>
+          <tr>
+            <td>SR 11-7</td>
+            <td>Governança de modelos financeiros</td>
+            <td>Policy snapshot por decisão, rationale, versionamento de modelo.</td>
+            <td><span class="veredicto veredicto--mapeado">Mapeado</span></td>
+          </tr>
+
+          <tr class="matriz__sep"><td colspan="4">Frameworks de referência</td></tr>
+          <tr>
+            <td>NIST AI RMF</td>
+            <td>Govern, Map, Measure, Manage</td>
+            <td>SealedRecibo cobre Map (escopo) + Measure (rationale) + Manage (appeal).</td>
+            <td><span class="veredicto veredicto--mapeado">Mapeado</span></td>
+          </tr>
+
+        </tbody>
+      </table>
+      </div>
+
+      <p style="margin-top:32px">
+        Duas convenções de leitura. Primeiro: estados marcados como <strong>Mapeado</strong> indicam
+        correspondência técnica documentada, sem que isso implique validação jurídica externa naquela
+        jurisdição. Segundo: o portfólio FoundLab opera primariamente sob o plano regulatório
+        brasileiro; mapeamentos europeu e norte-americano constituem leitura adjacente, instrumental
+        para conversas com instituições com exposição internacional ou subsidiárias em jurisdições
+        cobertas.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- CAMADA XIII — STACK GCP                                       -->
+<!-- ============================================================ -->
+<section class="camada" id="cap-13" data-num="XIII" data-label="Stack" data-titulo="Provisionamento GCP">
+  <div class="wrap revelar">
+    <header class="camada__abertura">
+      <div class="camada__num">Camada XIII · Stack e provisionamento</div>
+      <h2 class="camada__titulo">Onde tudo <em>roda</em>, e como se verifica</h2>
+      <p class="camada__sub">Serviços GCP por camada arquitetural, base de testes e pipeline de entrega.</p>
+    </header>
+
+    <div class="corpo">
+      <p>
+        REX Guard é nativamente GCP. Cada camada arquitetural tem correspondência direta a um
+        serviço gerenciado do Google Cloud. A região de hospedagem é
+        <code class="inline">southamerica-east1</code> e o projeto operacional é
+        <code class="inline">foundlab-ati</code>. O provisionamento é executado via scripts
+        idempotentes versionados no repositório, e nenhuma modificação manual sobrevive à próxima
+        execução.
+      </p>
+    </div>
+
+    <div class="stack revelar">
+      <div class="stack__camada">Runtime</div>
+      <div class="stack__tech">Node.js 22 (CI) / 20 (container) <code>TypeScript strict</code></div>
+
+      <div class="stack__camada">Framework backend</div>
+      <div class="stack__tech">Fastify 4 <code>schema-validation rigorosa</code></div>
+
+      <div class="stack__camada">Frontend</div>
+      <div class="stack__tech">Next.js 15.5 + React 19 <code>static export, sem SSR</code></div>
+
+      <div class="stack__camada">Inferência</div>
+      <div class="stack__tech">Vertex AI Gemini <code>via Guardian AI endpoint</code></div>
+
+      <div class="stack__camada">Cache de consentimento</div>
+      <div class="stack__tech">Cloud Memorystore Redis <code>Serverless VPC Access</code></div>
+
+      <div class="stack__camada">Cadeia Merkle &amp; outbox</div>
+      <div class="stack__tech">Cloud Spanner <code>runTransactionAsync · TrueTime</code></div>
+
+      <div class="stack__camada">Veritas Ledger</div>
+      <div class="stack__tech">BigQuery WORM <code>particionado por dia</code></div>
+
+      <div class="stack__camada">Assinatura criptográfica</div>
+      <div class="stack__tech">Cloud KMS HSM <code>ECDSA P-256 + AES-256-GCM</code></div>
+
+      <div class="stack__camada">Edge security</div>
+      <div class="stack__tech">Cloud Armor + Global Load Balancing</div>
+
+      <div class="stack__camada">Compute</div>
+      <div class="stack__tech">Cloud Run <code>privado · sem invocação anônima</code></div>
+
+      <div class="stack__camada">Identidade CI/CD</div>
+      <div class="stack__tech">Workload Identity Federation <code>GitHub OIDC</code></div>
+
+      <div class="stack__camada">Registry de container</div>
+      <div class="stack__tech">Artifact Registry <code>southamerica-east1</code></div>
+
+      <div class="stack__camada">Hosting frontend</div>
+      <div class="stack__tech">Firebase Hosting <code>target dedicado</code></div>
+    </div>
+
+    <div class="corpo">
+      <p>
+        A estratégia de identidade é Workload Identity Federation: o pipeline CI/CD em GitHub Actions
+        autentica-se em GCP via federação OIDC, sem chaves estáticas de service account em
+        repositório ou em segredo de pipeline. A imagem é construída em CI, publicada no Artifact
+        Registry e implantada no Cloud Run com invocação restrita; o serviço só responde a chamadores autenticados.
+      </p>
+
+      <p>
+        O pipeline CI/CD executa três jobs sequenciais — <em>test</em>, <em>build-push</em> e
+        <em>deploy-cloud-run</em>. O job de teste roda a totalidade do suite Tier 1 (sem dependência
+        de GCP) a cada PR, com enforcement de cobertura crítica. O job de integração Tier 2 (com
+        GCP real) é acionado por <em>workflow_dispatch</em> e produz artefato de evidência separado.
+        Health check pós-deploy é autenticado por ID token bound ao audience da URL do serviço.
+      </p>
+
+      <h4 class="subtitulo">Métricas de validação corrente</h4>
+      <div class="wrap-wide" style="padding:0">
+        <div class="limites" style="margin:24px 0">
+          <div class="limites__celula">
+            <div class="limites__label">Casos de teste</div>
+            <div class="limites__valor">403 <sub>passing</sub></div>
+            <p class="limites__nota">Distribuídos em 27 suites; mais 20 marcados como <code class="inline">todo</code> (placeholders documentados). Constructor injection completa em todos os serviços críticos para verificação independente de invariantes.</p>
+          </div>
+          <div class="limites__celula">
+            <div class="limites__label">Cobertura · statements</div>
+            <div class="limites__valor">99,3 <sub>%</sub></div>
+            <p class="limites__nota">Enforcement de cobertura crítica por arquivo, validado a cada PR via <code class="inline">check-critical-coverage.js</code> contra contrato em JSON.</p>
+          </div>
+          <div class="limites__celula">
+            <div class="limites__label">Cobertura · branches</div>
+            <div class="limites__valor">89,3 <sub>%</sub></div>
+            <p class="limites__nota">Caminhos de exceção e fail-closed cobertos explicitamente. Cenários de erro testados ao lado dos caminhos felizes. Functions 99,3% · lines 99,6%.</p>
+          </div>
+          <div class="limites__celula">
+            <div class="limites__label">Cadência CI/CD</div>
+            <div class="limites__valor">3 <sub>jobs</sub></div>
+            <p class="limites__nota">Test (Tier 1, todo PR) · build-push (main, feature) · deploy-cloud-run (main). Tier 2 com GCP real acionado por workflow_dispatch.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- CAMADA XIV — PERÍMETRO                                        -->
+<!-- ============================================================ -->
+<section class="camada" id="cap-14" data-num="XIV" data-label="Perímetro" data-titulo="Responsabilidade compartilhada">
+  <div class="wrap revelar">
+    <header class="camada__abertura">
+      <div class="camada__num">Camada XIV · Perímetro e responsabilidade</div>
+      <h2 class="camada__titulo">A <em>fronteira</em> entre o que REX Guard responde e o que o cliente responde</h2>
+      <p class="camada__sub">Modelo de responsabilidade compartilhada explícito, em vez de pressuposto.</p>
+    </header>
+
+    <div class="corpo">
+      <p>
+        Em qualquer integração com instituição financeira, há uma fronteira inevitável de
+        responsabilidade. REX Guard responde pela camada de evidência por decisão, pela ordenação
+        temporal, pela assinatura criptográfica, pelo enforcement de consentimento e pela imutabilidade
+        da auditoria. O cliente responde pela integração de seus sistemas regulamentados com a
+        superfície do REX Guard, pela definição de escopos OPIN, pelos modelos de risco que governam
+        a aceitação ou recusa das decisões automatizadas, e pela governança humana sobre o appeal.
+      </p>
+
+      <dl class="escopo">
+        <dt>Sob REX Guard</dt>
+        <dd>Validação de consentimento, máscaras PII via Guardian AI, gates BurnEngine, encadeamento Merkle, assinatura ECDSA HSM-bound, durabilidade Spanner, persistência WORM, rota de contestação técnica, redaction de logs.</dd>
+
+        <dt>Sob o cliente</dt>
+        <dd>Integração com seus sistemas internos, definição de escopos OPIN, configuração da política de modelo, governança humana sobre recursos, decisão final sobre contestações, e a comunicação ao usuário titular dos dados.</dd>
+
+        <dt>Conjunto</dt>
+        <dd>Definição do snapshot de política, RACI documentado, plano de validação UAT, monitoramento contínuo de SLO, rotação de chaves KMS, atualização do modelo Gemini e procedimentos de incidente.</dd>
+      </dl>
+
+      <p>
+        A fronteira é descrita em RACI documentado, em vez de pressuposta por convenção. Isso é
+        deliberadamente explícito: a auditabilidade do sistema depende de que cada evento dentro do
+        perímetro do REX Guard tenha um <em>owner</em> claro, e que cada evento fora do perímetro
+        tenha igualmente um <em>owner</em> claro do lado do cliente.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- CAMADA XV — GOVERNANÇA INSTITUCIONAL                          -->
+<!-- ============================================================ -->
+<section class="camada" id="cap-15" data-num="XV" data-label="Governança" data-titulo="Conselho Consultivo Estratégico">
+  <div class="wrap revelar">
+    <header class="camada__abertura">
+      <div class="camada__num">Camada XV · Governança institucional</div>
+      <h2 class="camada__titulo">O <em>escrutínio</em> que respalda a tese</h2>
+      <p class="camada__sub">Conselho Consultivo Estratégico — mandato, perfis e razão de existência.</p>
+    </header>
+
+    <div class="corpo">
+      <p class="abertura-paragrafo">
+        Posicionar uma camada de infraestrutura crítica sob escrutínio regulatório exige mais que
+        diligência técnica. Exige escrutínio institucional contínuo por figuras que carregam
+        credibilidade independente dentro do ecossistema brasileiro de risco, cibersegurança e
+        governança financeira. Para isso a FoundLab mantém um <strong>Conselho Consultivo
+        Estratégico</strong>, com mandato explícito.
+      </p>
+
+      <h4 class="subtitulo">Mandato</h4>
+      <p>
+        Validar a arquitetura regulatória da Auditable Trust Infrastructure perante auditores e
+        reguladores; abrir conversas qualificadas com CISOs, CTOs e diretores de risco em
+        instituições Tier-1; sinalizar ao mercado que a tese opera sob escrutínio institucional, e
+        não apenas convicção interna.
+      </p>
+
+      <h4 class="subtitulo">Composição</h4>
+      <p>
+        O conselho reúne cinco perfis senior do ecossistema brasileiro de risco e cibersegurança.
+        Por razões estratégicas, apenas um nome é publicado neste documento; os demais permanecem
+        identificados por credencial.
+      </p>
+
+      <div class="conselho">
+
+        <div class="conselho__linha">
+          <div class="conselho__perfil">Glauco Sampaio <em>Conselheiro publicado</em></div>
+          <div class="conselho__credencial">
+            <strong>Ex-CISO Cielo · CEO BeePhish · 25+ anos em segurança da informação em adquirência e bancos Tier-1.</strong>
+            Presença editorial relevante em fóruns brasileiros de cyber e fraud. Traz ao conselho a
+            leitura de campo de incidentes reais em escala financeira.
+          </div>
+        </div>
+
+        <div class="conselho__linha">
+          <div class="conselho__perfil">Conselheiro 02 <em>Governança de TI executiva</em></div>
+          <div class="conselho__credencial">
+            <strong>Ex-CIO de bureau de crédito global e instituição financeira global; CCA+ pelo IBGC.</strong>
+            Traz leitura de board sobre governança de TI em ambiente regulado, com histórico em
+            instituições com forte exposição a auditoria internacional.
+          </div>
+        </div>
+
+        <div class="conselho__linha">
+          <div class="conselho__perfil">Conselheiro 03 <em>Cyber em neobank</em></div>
+          <div class="conselho__credencial">
+            <strong>BISO em neobank brasileiro com 100M+ clientes; especialização em GRC adaptativo.</strong>
+            Traz a leitura cyber da camada digital nativa — ambiente com cadência de release alta e
+            superfície de ataque ampla, sob regulação BCB.
+          </div>
+        </div>
+
+        <div class="conselho__linha">
+          <div class="conselho__perfil">Conselheiro 04 <em>Risco no SFN</em></div>
+          <div class="conselho__credencial">
+            <strong>Comitê de Riscos de utility infrastructure do Sistema Financeiro Nacional; cyber due diligence em operações de M&amp;A.</strong>
+            Traz leitura de risco sistêmico e de auditoria sobre fornecedor crítico em ambiente de
+            infraestrutura compartilhada.
+          </div>
+        </div>
+
+        <div class="conselho__linha">
+          <div class="conselho__perfil">Conselheiro 05 <em>Tradução técnica para board</em></div>
+          <div class="conselho__credencial">
+            <strong>Founder de research firm com pesquisa setorial em mercado de capitais; mandato editorial sobre risco técnico.</strong>
+            Traz a habilidade de traduzir risco técnico em narrativa institucional para conselhos e
+            comitês de auditoria.
+          </div>
+        </div>
+
+      </div>
+
+      <p style="margin-top:32px">
+        A não-publicação de nomes é decisão estratégica corrente, revisada periodicamente. Auditoria
+        do conselho, mandato individual e termos de vesting são tratados em material institucional
+        próprio, sob NDA específico.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- CAMADA XVI — VEREDICTO                                        -->
+<!-- ============================================================ -->
+<section class="camada" id="cap-16" data-num="XVI" data-label="Veredicto" data-titulo="Estado corrente">
+  <div class="wrap revelar">
+    <header class="camada__abertura">
+      <div class="camada__num">Camada XVI · Veredicto técnico</div>
+      <h2 class="camada__titulo">O que está <em>em produção</em>, o que está em trilha</h2>
+      <p class="camada__sub">A leitura final sem retórica de contraste e sem declaração de conformidade não-validada.</p>
+    </header>
+
+    <div class="corpo">
+      <p class="abertura-paragrafo">
+        REX Guard apresenta arquitetura e implementação substancialmente alinhadas ao plano de
+        arquitetura vigente e à Resolução BCB 538/2025. A pipeline GCP está provisionada,
+        autenticada e operacional. A base de testes é robusta. A arquitetura é fail-closed nos seis
+        pontos materiais e a cadeia Merkle de auditoria opera atomicamente via Spanner TrueTime.
+        A tese tem validação Tier-1 em produção desde Q4 2025.
+      </p>
+
+      <h4 class="subtitulo">Estado corrente, em três frases</h4>
+      <p>
+        A pipeline <code>POST /v1/infer</code> é fail-closed nos seis pontos materiais; a cadeia
+        Merkle é serializável e ancorada em TrueTime; o repositório auditável é WORM-particionado
+        em BigQuery e protegido por papel IAM segregado.
+      </p>
+
+      <h4 class="subtitulo">Em trilha</h4>
+      <p>
+        Três itens regulatórios estão em rota antes de cada onda de expansão para nova instituição:
+        integração TSA RFC 3161 real (Art. 15 §1º), provisionamento do papel
+        <code>bcb-audit-reader</code> (Art. 15 §2º) e substituição dos stubs OFAC por integrações
+        reais antes do tráfego com dados de clientes nominados. Cada um tem owner definido.
+      </p>
+
+      <h4 class="subtitulo">No portfólio</h4>
+      <p>
+        Shield e LoopShield expandem a oferta para wedges defensivos de ciclo curto sobre o mesmo
+        backbone — em blueprint, com spec arquitetural completa e zero código shipped. Umbrella,
+        BurnEngine e Guardian AI já operam em produção como camadas paralelas. VEX-OS está em
+        roadmap como camada de consumo da evidência. REX permanece como capability embedded com
+        roadmap para SKU standalone.
+      </p>
+
+      <h4 class="subtitulo">O que esta camada técnica não substitui</h4>
+      <p>
+        A leitura regulatória apresentada é técnica, e a auditoria interna do produto foi conduzida
+        por reconciliação cruzada entre dois agentes auditores independentes. Isso não substitui
+        validação jurídica formal de conformidade BCB 538/2025, que segue trilha separada, nem
+        substitui pentest de terceiros, que está previsto em janela específica antes de cada onda
+        de expansão.
+      </p>
+
+      <p>
+        A premissa de produto — <em>Trust by Physics</em>, conformidade como evento matemático e físico
+        — é defensável tecnicamente. A defesa é o que está descrito ao longo das quinze camadas
+        anteriores: portões materiais, ordenação monotônica, evidência selada, durabilidade
+        WORM, contestabilidade nominada, validação Tier-1 em campo e governança institucional sob
+        escrutínio. O resto é processo, e o processo tem responsável.
+      </p>
+
+      <hr class="separador" />
+
+      <p class="citacao" style="margin-left:0;">
+        A diferença entre evidência criptográfica e narrativa sobre uma decisão é a diferença entre
+        algo que um auditor verifica e algo que um operador afirma.
+        <cite>Princípio operacional · Auditable Trust Infrastructure</cite>
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- APÊNDICE — GLOSSÁRIO                                          -->
+<!-- ============================================================ -->
+<section class="camada" id="cap-17" data-num="A" data-label="Glossário" data-titulo="Apêndice técnico">
+  <div class="wrap revelar">
+    <header class="camada__abertura">
+      <div class="camada__num">Apêndice · Glossário técnico</div>
+      <h2 class="camada__titulo">Termos-chave, em <em>uma linha</em> cada</h2>
+      <p class="camada__sub">Referência rápida para os principais artefatos, módulos e mecanismos citados ao longo do documento.</p>
+    </header>
+
+    <div class="glossario">
+
+      <div class="glossario__item">
+        <div class="glossario__termo">Auditable Trust Infrastructure</div>
+        <p class="glossario__def">Categoria de produto da FoundLab: a camada programável de confiança auditável para IA regulada.</p>
+      </div>
+
+      <div class="glossario__item">
+        <div class="glossario__termo">BCB 538/2025</div>
+        <p class="glossario__def">Resolução do Banco Central do Brasil que estabelece requisitos de governança, monitoramento, auditoria e contestabilidade para uso de IA em instituições financeiras.</p>
+      </div>
+
+      <div class="glossario__item">
+        <div class="glossario__termo">BurnEngine</div>
+        <p class="glossario__def">Kill-switch regulatório com quatro estados nominados — APPROVE, FLAG_REVIEW, FREEZE_ASSETS, BURN_IMMEDIATE. Inviolável por arquitetura.</p>
+      </div>
+
+      <div class="glossario__item">
+        <div class="glossario__termo">ChainHead</div>
+        <p class="glossario__def">Linha única no Cloud Spanner que mantém o hash da última decisão da cadeia; atualizada em transação serializável atômica.</p>
+      </div>
+
+      <div class="glossario__item">
+        <div class="glossario__termo">DecisionID</div>
+        <p class="glossario__def">Identificador imutável atribuído a cada decisão; presente no SealedRecibo e usado como referência em qualquer evento subsequente, incluindo o appeal.</p>
+      </div>
+
+      <div class="glossario__item">
+        <div class="glossario__termo">ECDSA P-256</div>
+        <p class="glossario__def">Algoritmo de assinatura digital sobre curva elíptica NIST P-256; usado em formato raw r∥s, com chave hardware-bound em Cloud KMS.</p>
+      </div>
+
+      <div class="glossario__item">
+        <div class="glossario__termo">Fail-closed</div>
+        <p class="glossario__def">Postura de falha em que qualquer erro de dependência interrompe a chamada como BLOCKED; não admite fallback permissivo nem degradação silenciosa.</p>
+      </div>
+
+      <div class="glossario__item">
+        <div class="glossario__termo">Guardian AI</div>
+        <p class="glossario__def">Camada de mascaramento de PII em tempo real no perímetro do cliente; opera como gate de entrada e como re-validação de saída em REX Guard.</p>
+      </div>
+
+      <div class="glossario__item">
+        <div class="glossario__termo">KMS HSM</div>
+        <p class="glossario__def">Cloud KMS com chaves armazenadas em Hardware Security Module gerenciado; material da chave nunca é exportado.</p>
+      </div>
+
+      <div class="glossario__item">
+        <div class="glossario__termo">LoopShield</div>
+        <p class="glossario__def">Módulo do REX Guard Shield que governa transições dentro de agent loops — PreToolUse, PostToolUse, SubagentStart, PreCompact, Stop — aplicando política e gerando SealedRecibos. Blueprint.</p>
+      </div>
+
+      <div class="glossario__item">
+        <div class="glossario__termo">Cadeia Merkle</div>
+        <p class="glossario__def">Sequência encadeada onde cada nó carrega o hash do anterior; reescrita de um nó exige reescrita de todos os subsequentes, tornando manipulação detectável.</p>
+      </div>
+
+      <div class="glossario__item">
+        <div class="glossario__termo">OPIN</div>
+        <p class="glossario__def">Plataforma de Open Insurance / Open Finance brasileira; provê escopos de consentimento formalmente expressos, com expiração explícita.</p>
+      </div>
+
+      <div class="glossario__item">
+        <div class="glossario__termo">Paradoxo da Retenção</div>
+        <p class="glossario__def">Conflito estrutural entre exigências de retenção regulatória e exigências de minimização de dados; resolvido por desacoplamento criptográfico.</p>
+      </div>
+
+      <div class="glossario__item">
+        <div class="glossario__termo">REX (capability)</div>
+        <p class="glossario__def">Real-time Rationale Extraction. Capability embedded em REX Guard Gemini para geração de rationale narrativo PT/EN por decisão.</p>
+      </div>
+
+      <div class="glossario__item">
+        <div class="glossario__termo">REX Guard Gemini</div>
+        <p class="glossario__def">Produto institucional da FoundLab, em produção Tier-1; proxy reverso fail-closed entre aplicações reguladas e Vertex AI / Gemini.</p>
+      </div>
+
+      <div class="glossario__item">
+        <div class="glossario__termo">REX Guard Shield</div>
+        <p class="glossario__def">Wedge defensivo de ciclo comercial curto sobre o backbone REX Guard; PromptShield + ContextShield + ToolShield + LoopShield. Blueprint.</p>
+      </div>
+
+      <div class="glossario__item">
+        <div class="glossario__termo">RFC 3161 (TSA)</div>
+        <p class="glossario__def">Padrão de Time-Stamping Authority; integração real prevista para selar timestamps externos de auditoria.</p>
+      </div>
+
+      <div class="glossario__item">
+        <div class="glossario__termo">SealedRecibo</div>
+        <p class="glossario__def">Objeto JSON imutável que constitui a evidência por decisão; assinado em ECDSA P-256 raw e encadeado por hash ao recibo anterior.</p>
+      </div>
+
+      <div class="glossario__item">
+        <div class="glossario__termo">Spanner TrueTime</div>
+        <p class="glossario__def">Commit timestamp do Cloud Spanner; única fonte de tempo válida em paths de auditoria do REX Guard.</p>
+      </div>
+
+      <div class="glossario__item">
+        <div class="glossario__termo">ThoughtSignatureReceipt</div>
+        <p class="glossario__def">Variante do SealedRecibo, específica do Shield, para custódia de thought signatures do Gemini 3.</p>
+      </div>
+
+      <div class="glossario__item">
+        <div class="glossario__termo">Umbrella Platform</div>
+        <p class="glossario__def">Infraestrutura serverless da FoundLab sobre GCP, 100% dentro do VPC do cliente; soberania de dados e zero vendor lock-in.</p>
+      </div>
+
+      <div class="glossario__item">
+        <div class="glossario__termo">Veritas Protocol</div>
+        <p class="glossario__def">Substrato criptográfico que sustenta a camada de evidência: DecisionID, hashes, policy_snapshot_hash, KMS-bound signature, chain hash.</p>
+      </div>
+
+      <div class="glossario__item">
+        <div class="glossario__termo">Veritas Ledger</div>
+        <p class="glossario__def">Tabela BigQuery WORM-partitioned dedicada à retenção imutável dos SealedRecibos.</p>
+      </div>
+
+      <div class="glossario__item">
+        <div class="glossario__termo">VEX-OS</div>
+        <p class="glossario__def">Console operacional de governança da FoundLab; camada de consumo da evidência produzida pela suíte. Roadmap.</p>
+      </div>
+
+      <div class="glossario__item">
+        <div class="glossario__termo">WORM</div>
+        <p class="glossario__def">Write Once Read Many; em BigQuery, partições configuradas que vedam UPDATE e DELETE.</p>
+      </div>
+
+      <div class="glossario__item">
+        <div class="glossario__termo">Zero-Persistence</div>
+        <p class="glossario__def">PII processada durante inferência nunca persiste em disco; execução em memória volátil com shred e GC forçados na saída.</p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+</main>
+
+<!-- ============================================================ -->
+<!-- FICHA TÉCNICA                                                 -->
+<!-- ============================================================ -->
+<footer class="ficha">
+  <div class="ficha__inner">
+    <div class="ficha__titulo">Ficha técnica</div>
+    <dl>
+      <dt>Camada</dt><dd>REX Guard — instância produtiva atual do Programmable Trust Layer</dd>
+      <dt>Suíte</dt><dd>REX Guard Gemini · Shield · LoopShield · Umbrella · Veritas · BurnEngine · Guardian AI · VEX-OS · REX</dd>
+      <dt>Plano regulatório</dt><dd>BCB 538/2025 · LGPD · OPIN · CMN 4.893/2021 · EU AI Act · DORA · SOX · SR 11-7 · NIST AI RMF</dd>
+      <dt>Infraestrutura</dt><dd>Google Cloud — região southamerica-east1 · projeto foundlab-ati</dd>
+      <dt>Princípios invioláveis</dt><dd>Fail-closed · Zero-persistence · TrueTime exclusivo · ECDSA raw r∥s · Redaction PII em logs · Scope fail-closed em SCOPE_MISMATCH</dd>
+      <dt>Validação em campo</dt><dd>Tier-1 em produção · corretagem e gestão de ativos · Q4 2025 →</dd>
+      <dt>Governança</dt><dd>Conselho Consultivo Estratégico · 5 perfis senior · 1 publicado</dd>
+      <dt>Classificação</dt><dd>Confidencial — distribuição restrita sob NDA</dd>
+      <dt>Validação jurídica</dt><dd>Trilha separada — não substituível por leitura técnica</dd>
+    </dl>
+
+    <div class="ficha__rodape">
+      FoundLab <span>·</span> Auditable Trust Infrastructure <span>·</span> Don’t trust, verify
+    </div>
+  </div>
+</footer>
+
+<script>
+(function() {
+  'use strict';
+
+  const bar = document.getElementById('progress-bar');
+  function updateProgress() {
+    const h = document.documentElement;
+    const scrolled = h.scrollTop || document.body.scrollTop;
+    const height = h.scrollHeight - h.clientHeight;
+    const pct = height > 0 ? (scrolled / height) * 100 : 0;
+    bar.style.height = pct + '%';
+  }
+  window.addEventListener('scroll', updateProgress, { passive: true });
+  window.addEventListener('resize', updateProgress);
+  updateProgress();
+
+  const camadas = Array.from(document.querySelectorAll('[data-num]'));
+  const sumarioLista = document.getElementById('sumario-lista');
+  const sumarioPanel = document.getElementById('sumario');
+  const sumarioNum = document.getElementById('sumario-num');
+  const sumarioTitulo = document.getElementById('sumario-titulo');
+  const ticksContainer = document.getElementById('progress-ticks');
+
+  camadas.forEach((ch) => {
+    if (ch.id === 'cap-0') return;
+    const li = document.createElement('li');
+    const a = document.createElement('a');
+    a.href = '#' + ch.id;
+    a.className = 'sumario__link';
+    a.dataset.target = ch.id;
+    a.innerHTML = '<span class="sumario__link-num">' + ch.dataset.num + '</span>' + ch.dataset.label;
+    li.appendChild(a);
+    sumarioLista.appendChild(li);
+  });
+
+  function buildTicks() {
+    ticksContainer.innerHTML = '';
+    const docH = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+    if (docH <= 0) return;
+    camadas.forEach(ch => {
+      const rect = ch.getBoundingClientRect();
+      const top = rect.top + window.scrollY;
+      const pct = (top / docH) * 100;
+      if (pct < 0 || pct > 100) return;
+      const tick = document.createElement('div');
+      tick.className = 'progress__tick';
+      tick.style.top = pct + '%';
+      ticksContainer.appendChild(tick);
+    });
+  }
+  setTimeout(buildTicks, 200);
+  window.addEventListener('resize', buildTicks);
+
+  const sumarioLinks = Array.from(document.querySelectorAll('.sumario__link'));
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        const el = entry.target;
+        sumarioNum.textContent = el.dataset.num;
+        sumarioTitulo.textContent = el.dataset.label;
+        sumarioLinks.forEach(link => {
+          link.classList.toggle('is-ativo', link.dataset.target === el.id);
+        });
+      }
+    });
+  }, { rootMargin: '-40% 0px -55% 0px', threshold: 0 });
+  camadas.forEach(c => observer.observe(c));
+
+  const revelarEls = document.querySelectorAll('.revelar');
+  const revelarObs = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('is-visivel');
+        revelarObs.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.08 });
+  revelarEls.forEach(el => revelarObs.observe(el));
+
+  const passos = document.querySelectorAll('.passo');
+  const passoObs = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        setTimeout(() => entry.target.classList.add('is-visivel'), 120);
+        passoObs.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.3 });
+  passos.forEach(s => passoObs.observe(s));
+
+  const pipelineEl = document.getElementById('pipeline');
+  if (pipelineEl) {
+    const pipeObs = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        pipelineEl.classList.toggle('is-ativo', entry.isIntersecting);
+      });
+    }, { threshold: 0.15 });
+    pipeObs.observe(pipelineEl);
+  }
+
+  const cadeiaNos = document.querySelectorAll('.cadeia__no');
+  cadeiaNos.forEach(no => {
+    const ativar = () => {
+      cadeiaNos.forEach(n => n.classList.remove('is-ativo'));
+      no.classList.add('is-ativo');
+    };
+    no.addEventListener('mouseenter', ativar);
+    no.addEventListener('focus', ativar);
+  });
+
+  const btnSumario = document.getElementById('btn-sumario');
+  let sumarioVisivel = false;
+  function setSumarioVisivel(v) {
+    sumarioVisivel = v;
+    sumarioPanel.classList.toggle('is-aberto', v);
+    btnSumario.setAttribute('aria-expanded', v ? 'true' : 'false');
+  }
+  btnSumario.addEventListener('click', () => setSumarioVisivel(!sumarioVisivel));
+  if (window.matchMedia('(min-width: 881px)').matches) {
+    setSumarioVisivel(true);
+  }
+
+  document.getElementById('btn-imprimir').addEventListener('click', () => window.print());
+
+  document.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+    const k = e.key.toLowerCase();
+    if (k === 's') {
+      e.preventDefault();
+      setSumarioVisivel(!sumarioVisivel);
+    } else if (k === 'p') {
+      e.preventDefault();
+      window.print();
+    } else if (k === 'g') {
+      e.preventDefault();
+      document.getElementById('cap-17').scrollIntoView({ behavior: 'smooth' });
+    } else if (e.key === 'Home') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else if (e.key === 'End') {
+      window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+    }
+  });
+
+})();
+</script>
+
+</body>
+</html>
