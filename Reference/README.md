@@ -9,4 +9,4 @@ define standards (isso é o [`Core/`](../Core/)).
 - **[rex-guard-market.md](REX-Guard/rex-guard-market.md)** — material de produto/mercado do REX Guard
 
 ### [Resources/](Resources/)
-- **Index.html** — recurso estático (dashboard/landing legado)
+- **[Index.html](Resources/Index.html)** — recurso estático (dashboard/landing legado)
