@@ -94,6 +94,21 @@ def search_kb(query, top_k=5):
 
 O mesmo vale para `get_skill`, `get_document`, `list_catalog`.
 
+**Exemplo executável (Grok / xAI):** [`examples/grok_function_calling.py`](examples/grok_function_calling.py)
+— usa o SDK `openai` apontado para o endpoint da xAI, com os 4 tools ligados ao engine
+e um loop de tool calling pronto.
+
+```bash
+pip install openai
+export XAI_API_KEY=...                 # sua chave da xAI
+export GROK_MODEL=grok-4.3             # valide em https://docs.x.ai/docs/models
+python3 tools/kb-mcp/examples/grok_function_calling.py "qual o procedimento de deploy do REX?"
+```
+
+> Como a API da xAI é compatível com a da OpenAI, o mesmo script roda no **OpenAI** trocando
+> `XAI_BASE_URL`/`XAI_API_KEY` pelas credenciais da OpenAI e o modelo. Para **Gemini**, o
+> formato de tool é diferente (function declarations), mas o handler que chama `kb_index` é idêntico.
+
 ## Por que BM25 e não embeddings?
 
 Para ~60 documentos curados, BM25 entrega ranking excelente com **zero dependência de
