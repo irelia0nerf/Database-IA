@@ -1,0 +1,50 @@
+name: Deploy KB MCP (Cloud Run)
+
+# Deploy keyless (OIDC / Workload Identity Federation) do KB MCP server no Cloud Run.
+# Padrão FoundLab: nenhuma chave de service account guardada — o GitHub autentica
+# no GCP via Workload Identity. Dispare manualmente em Actions -> "Run workflow".
+
+on:
+  workflow_dispatch:
+    inputs:
+      region:
+        description: "Região do Cloud Run"
+        default: southamerica-east1
+        required: false
+
+permissions:
+  contents: read
+  id-token: write   # necessário para o OIDC
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          # Variables do repo (Settings -> Secrets and variables -> Actions -> Variables)
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SA }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Deploy no Cloud Run
+        run: |
+          gcloud run deploy foundlab-kb-mcp \
+            --source . \
+            --project "${{ vars.GCP_PROJECT_ID }}" \
+            --region "${{ inputs.region }}" \
+            --allow-unauthenticated \
+            --set-env-vars KB_TRANSPORT=streamable-http \
+            --set-secrets KB_AUTH_TOKEN=kb-mcp-token:latest
+
+      - name: URL pública (cole no conector do Grok com /mcp)
+        run: |
+          URL=$(gcloud run services describe foundlab-kb-mcp \
+            --project "${{ vars.GCP_PROJECT_ID }}" \
+            --region "${{ inputs.region }}" --format='value(status.url)')
+          echo "Endpoint MCP: ${URL}/mcp"
+          echo "### KB MCP deployed: ${URL}/mcp" >> "$GITHUB_STEP_SUMMARY"
