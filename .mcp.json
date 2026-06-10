@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "foundlab-kb": {
+      "command": "python3",
+      "args": ["tools/kb-mcp/server.py"],
+      "env": {
+        "KB_ROOT": "${workspaceFolder}"
+      }
+    }
+  }
+}

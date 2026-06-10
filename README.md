@@ -61,9 +61,31 @@ Database-IA/
 │   ├── Blockchain-Web3/        Smart contracts, DeFi, Web3
 │   └── Market-Research/        Apify, RFC FoundLab, deploy REX Guard
 │
-└── Reference/                  Documentação operacional
-    ├── REX-Guard/              Material de produto/mercado
-    └── Resources/              Arquivos estáticos (HTML)
+├── Reference/                  Documentação operacional
+│   ├── REX-Guard/              Material de produto/mercado
+│   └── Resources/              Arquivos estáticos (HTML)
+│
+└── tools/
+    └── kb-mcp/                 MCP server: serve a base a agentes (busca BM25)
+```
+
+---
+
+## Entrega ativa — MCP Server
+
+Esta base não é só para ler: ela é **servida ativamente** a agentes via
+[`tools/kb-mcp/`](tools/kb-mcp/README.md). Um MCP server expõe todo o repositório como
+ferramentas (`search_kb`, `get_skill`, `get_document`…), com busca por relevância (BM25,
+sem rede). Assim o agente **descobre e puxa o conhecimento certo sozinho**:
+
+> *"qual o procedimento de deploy do REX?"* → `search_kb` → `rex-guard-deploy` → playbook completo.
+
+O wiring para Claude Code já está em [`.mcp.json`](.mcp.json). Setup:
+
+```bash
+pip install -r tools/kb-mcp/requirements.txt
+# teste o engine sem precisar do mcp:
+python3 tools/kb-mcp/kb_index.py "deploy do rex guard"
 ```
 
 ---
