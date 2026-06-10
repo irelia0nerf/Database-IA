@@ -105,7 +105,12 @@ if __name__ == "__main__":
     if transport == "streamable-http":
         # host/port configuráveis; o endpoint MCP fica em http://<host>:<port>/mcp
         mcp.settings.host = os.environ.get("KB_HOST", "127.0.0.1")
-        mcp.settings.port = int(os.environ.get("KB_PORT", "8000"))
+        port_raw = os.environ.get("KB_PORT", "8000")
+        try:
+            mcp.settings.port = int(port_raw)
+        except ValueError:
+            # Fail-closed: não bindar uma porta errada silenciosamente — erro claro.
+            raise SystemExit(f"KB_PORT inválido: {port_raw!r} — defina um inteiro (ex.: 8000)")
         mcp.run(transport="streamable-http")
     else:
         mcp.run()
