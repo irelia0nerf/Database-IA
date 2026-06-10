@@ -15,6 +15,7 @@ Wiring no Claude Code: ver .mcp.json na raiz do repositório.
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -96,4 +97,15 @@ def refresh_index() -> str:
 
 
 if __name__ == "__main__":
-    mcp.run()
+    # Transporte selecionável para suportar tanto clientes MCP locais quanto
+    # APIs hospedadas (OpenAI remote MCP, Gemini, Claude mcp_servers).
+    #   KB_TRANSPORT=stdio           -> clientes locais (Claude Code, Cursor, Gemini CLI...)
+    #   KB_TRANSPORT=streamable-http -> MCP remoto via URL (qualquer provider hospedado)
+    transport = os.environ.get("KB_TRANSPORT", "stdio")
+    if transport == "streamable-http":
+        # host/port configuráveis; o endpoint MCP fica em http://<host>:<port>/mcp
+        mcp.settings.host = os.environ.get("KB_HOST", "127.0.0.1")
+        mcp.settings.port = int(os.environ.get("KB_PORT", "8000"))
+        mcp.run(transport="streamable-http")
+    else:
+        mcp.run()

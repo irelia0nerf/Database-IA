@@ -56,6 +56,44 @@ python3 tools/kb-mcp/kb_index.py                       # estatísticas do índic
 python3 tools/kb-mcp/kb_index.py "deploy do rex guard" # top-5 resultados
 ```
 
+## Usar com outros LLMs (não só Claude)
+
+MCP é um protocolo aberto e o engine é Python agnóstico de provider — há 3 caminhos:
+
+### A) Mesmo servidor, outros clientes MCP locais (stdio)
+Funciona sem mudança em **Cursor, Windsurf, VS Code (Copilot agent), Zed, Gemini CLI,
+OpenAI Agents SDK**. Cada um tem seu próprio modelo por baixo; basta apontar o comando:
+
+```bash
+python3 tools/kb-mcp/server.py
+```
+
+### B) MCP remoto (HTTP) para APIs hospedadas
+APIs que aceitam um **URL de MCP server** (OpenAI remote MCP, Gemini, Claude `mcp_servers`)
+precisam de Streamable HTTP. O mesmo servidor serve isso via env var:
+
+```bash
+KB_TRANSPORT=streamable-http KB_HOST=0.0.0.0 KB_PORT=8000 python3 tools/kb-mcp/server.py
+# endpoint MCP: http://<host>:8000/mcp
+```
+
+### C) Sem MCP — function calling nativo
+Para qualquer LLM com tool/function calling, pule o MCP e chame o engine direto. Ele é
+provider-neutral:
+
+```python
+from kb_index import KnowledgeBase
+kb = KnowledgeBase()
+
+# declare como tool no SDK do provider (OpenAI/Gemini/Grok) com este schema:
+#   name: "search_kb", params: { query: string, top_k: int }
+# e no handler:
+def search_kb(query, top_k=5):
+    return kb.search(query, top_k=top_k)
+```
+
+O mesmo vale para `get_skill`, `get_document`, `list_catalog`.
+
 ## Por que BM25 e não embeddings?
 
 Para ~60 documentos curados, BM25 entrega ranking excelente com **zero dependência de
