@@ -15,6 +15,7 @@ Wiring no Claude Code: ver .mcp.json na raiz do repositório.
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -95,5 +96,54 @@ def refresh_index() -> str:
     return _json({"status": "ok", "documentos": len(_kb.docs), "skills": len(_kb.list_skills())})
 
 
+class _BearerAuthMiddleware:
+    """ASGI middleware: exige `Authorization: Bearer <token>` em requisições HTTP.
+
+    Habilitado quando KB_AUTH_TOKEN está definido. Necessário antes de expor o
+    endpoint publicamente (ex.: Cloud Run + conector do Grok).
+    """
+
+    def __init__(self, app, token: str):
+        self.app = app
+        self._expected = f"Bearer {token}"
+
+    async def __call__(self, scope, receive, send):
+        if scope.get("type") == "http":
+            headers = dict(scope.get("headers") or [])
+            if headers.get(b"authorization", b"").decode() != self._expected:
+                await send({"type": "http.response.start", "status": 401,
+                            "headers": [(b"content-type", b"application/json")]})
+                await send({"type": "http.response.body",
+                            "body": b'{"error":"unauthorized"}'})
+                return
+        await self.app(scope, receive, send)  # lifespan e demais scopes passam direto
+
+
 if __name__ == "__main__":
-    mcp.run()
+    # Transporte selecionável para suportar tanto clientes MCP locais quanto
+    # APIs hospedadas (OpenAI remote MCP, Gemini, Claude mcp_servers).
+    #   KB_TRANSPORT=stdio           -> clientes locais (Claude Code, Cursor, Gemini CLI...)
+    #   KB_TRANSPORT=streamable-http -> MCP remoto via URL (qualquer provider hospedado)
+    transport = os.environ.get("KB_TRANSPORT", "stdio")
+    if transport == "streamable-http":
+        host = os.environ.get("KB_HOST", "127.0.0.1")
+        # Cloud Run injeta PORT; KB_PORT tem precedência se definido.
+        port_raw = os.environ.get("KB_PORT") or os.environ.get("PORT") or "8000"
+        try:
+            port = int(port_raw)
+        except ValueError:
+            # Fail-closed: não bindar uma porta errada silenciosamente — erro claro.
+            raise SystemExit(f"Porta inválida: {port_raw!r} — defina um inteiro (ex.: 8000)")
+
+        app = mcp.streamable_http_app()  # ASGI; endpoint MCP em /mcp
+        token = os.environ.get("KB_AUTH_TOKEN")
+        if token:
+            app = _BearerAuthMiddleware(app, token)
+        else:
+            print("AVISO: KB_AUTH_TOKEN não definido — /mcp SEM autenticação. "
+                  "Não exponha publicamente assim.", file=sys.stderr)
+
+        import uvicorn
+        uvicorn.run(app, host=host, port=port)
+    else:
+        mcp.run()

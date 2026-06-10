@@ -1,3 +1,4 @@
 # MCP server da base de conhecimento FoundLab
 mcp>=1.2.0
 PyYAML>=6.0
+uvicorn>=0.30   # transporte streamable-http (Caminho B / deploy Cloud Run)

@@ -56,6 +56,148 @@ python3 tools/kb-mcp/kb_index.py                       # estatísticas do índic
 python3 tools/kb-mcp/kb_index.py "deploy do rex guard" # top-5 resultados
 ```
 
+## Usar com outros LLMs (não só Claude)
+
+MCP é um protocolo aberto e o engine é Python agnóstico de provider — há 3 caminhos:
+
+### A) Mesmo servidor, outros clientes MCP locais (stdio)
+Funciona sem mudança em **Cursor, Windsurf, VS Code (Copilot agent), Zed, Gemini CLI,
+OpenAI Agents SDK**. Cada um tem seu próprio modelo por baixo; basta apontar o comando:
+
+```bash
+python3 tools/kb-mcp/server.py
+```
+
+### B) MCP remoto (HTTP) para APIs hospedadas
+APIs que aceitam um **URL de MCP server** (OpenAI remote MCP, Gemini, Claude `mcp_servers`,
+**conector do Grok**) precisam de Streamable HTTP. O mesmo servidor serve isso via env var:
+
+```bash
+KB_TRANSPORT=streamable-http KB_HOST=0.0.0.0 KB_PORT=8000 \
+  KB_AUTH_TOKEN=$(openssl rand -hex 24) python3 tools/kb-mcp/server.py
+# endpoint MCP: http://<host>:8000/mcp
+```
+
+**Autenticação:** se `KB_AUTH_TOKEN` estiver definido, toda requisição exige
+`Authorization: Bearer <token>` (responde 401 sem ele). Sem o token, o servidor sobe
+**aberto** e avisa no stderr — nunca exponha publicamente assim.
+
+#### Deploy no Google Cloud Run (URL pública para o Grok)
+
+O Cloud Run gera uma URL HTTPS pública automaticamente — não é preciso ter domínio próprio.
+O [`Dockerfile`](../../Dockerfile) na raiz empacota a base inteira + o servidor.
+
+```bash
+# 1. gere um token e (recomendado) guarde no Secret Manager
+export KB_TOKEN=$(openssl rand -hex 24)
+
+# 2. deploy (Cloud Build a partir da raiz; Cloud Run injeta PORT)
+gcloud run deploy foundlab-kb-mcp \
+  --source . \
+  --region southamerica-east1 \
+  --allow-unauthenticated \
+  --set-env-vars KB_TRANSPORT=streamable-http,KB_AUTH_TOKEN=$KB_TOKEN
+
+# 3. pegue a URL pública
+gcloud run services describe foundlab-kb-mcp \
+  --region southamerica-east1 --format='value(status.url)'
+```
+
+No conector do Grok (grok.com → New Connector → Custom):
+- **URL do servidor:** `https://<url-do-cloud-run>/mcp`
+- **Auth:** API Key / Bearer → use o valor de `KB_TOKEN`
+
+> `--allow-unauthenticated` libera o IAM do Cloud Run (para o Grok alcançar a URL); a
+> proteção real é o `KB_AUTH_TOKEN` na aplicação. Em produção, injete o token via Secret
+> Manager (`--set-secrets KB_AUTH_TOKEN=kb-token:latest`) em vez de `--set-env-vars`.
+>
+> ⚠️ **Egresso de dados:** esta base é marcada *uso interno* no `CLAUDE.md`. Publicá-la num
+> Cloud Run que o Grok consome envia o conteúdo para a xAI. Decisão consciente — confirme o
+> escopo (ex.: subir só um subconjunto) antes de expor dados sensíveis.
+
+#### Deploy via GitHub Actions (OIDC keyless — padrão FoundLab)
+
+O jeito reproduzível, sem chave guardada: o workflow
+[`.github/workflows/deploy-kb-mcp.yml`](../../.github/workflows/deploy-kb-mcp.yml) autentica
+no GCP via Workload Identity Federation e roda o deploy. Setup uma vez:
+
+```bash
+PROJECT_ID=seu-project-id
+REPO=irelia0nerf/Database-IA
+gcloud config set project "$PROJECT_ID"
+
+# 1. service account de deploy + papéis
+gcloud iam service-accounts create kb-mcp-deployer --display-name "KB MCP deployer"
+SA="kb-mcp-deployer@${PROJECT_ID}.iam.gserviceaccount.com"
+for r in roles/run.admin roles/cloudbuild.builds.editor roles/artifactregistry.admin \
+         roles/storage.admin roles/iam.serviceAccountUser roles/secretmanager.secretAccessor; do
+  gcloud projects add-iam-policy-binding "$PROJECT_ID" --member="serviceAccount:$SA" --role="$r"
+done
+
+# 2. token em Secret Manager (o workflow lê kb-mcp-token:latest)
+printf '%s' "$(openssl rand -hex 24)" | gcloud secrets create kb-mcp-token --data-file=-
+
+# 3. Workload Identity Federation ligado ao repo
+gcloud iam workload-identity-pools create github --location=global --display-name="GitHub"
+gcloud iam workload-identity-pools providers create-oidc github-provider \
+  --location=global --workload-identity-pool=github \
+  --display-name="GitHub OIDC" \
+  --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository" \
+  --attribute-condition="assertion.repository=='${REPO}'" \
+  --issuer-uri="https://token.actions.githubusercontent.com"
+PROJNUM=$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')
+gcloud iam service-accounts add-iam-policy-binding "$SA" \
+  --role=roles/iam.workloadIdentityUser \
+  --member="principalSet://iam.googleapis.com/projects/${PROJNUM}/locations/global/workloadIdentityPools/github/attribute.repository/${REPO}"
+
+# 4. valor do WIF provider (vai numa Variable do GitHub)
+echo "projects/${PROJNUM}/locations/global/workloadIdentityPools/github/providers/github-provider"
+```
+
+Depois, em **GitHub → Settings → Secrets and variables → Actions → Variables**, crie:
+
+| Variable | Valor |
+|----------|-------|
+| `GCP_PROJECT_ID` | seu project id |
+| `GCP_DEPLOY_SA` | `kb-mcp-deployer@<project>.iam.gserviceaccount.com` |
+| `GCP_WIF_PROVIDER` | a string `projects/.../providers/github-provider` do passo 4 |
+
+Pronto: **Actions → "Deploy KB MCP (Cloud Run)" → Run workflow**. Ao final, o resumo do run
+imprime a URL `https://...run.app/mcp` para colar no conector do Grok (Auth = o token em
+`kb-mcp-token`).
+
+### C) Sem MCP — function calling nativo
+Para qualquer LLM com tool/function calling, pule o MCP e chame o engine direto. Ele é
+provider-neutral:
+
+```python
+from kb_index import KnowledgeBase
+kb = KnowledgeBase()
+
+# declare como tool no SDK do provider (OpenAI/Gemini/Grok) com este schema:
+#   name: "search_kb", params: { query: string, top_k: int }
+# e no handler:
+def search_kb(query, top_k=5):
+    return kb.search(query, top_k=top_k)
+```
+
+O mesmo vale para `get_skill`, `get_document`, `list_catalog`.
+
+**Exemplo executável (Grok / xAI):** [`examples/grok_function_calling.py`](examples/grok_function_calling.py)
+— usa o SDK `openai` apontado para o endpoint da xAI, com os 4 tools ligados ao engine
+e um loop de tool calling pronto.
+
+```bash
+pip install openai
+export XAI_API_KEY=...                 # sua chave da xAI
+export GROK_MODEL=grok-4.3             # valide em https://docs.x.ai/docs/models
+python3 tools/kb-mcp/examples/grok_function_calling.py "qual o procedimento de deploy do REX?"
+```
+
+> Como a API da xAI é compatível com a da OpenAI, o mesmo script roda no **OpenAI** trocando
+> `XAI_BASE_URL`/`XAI_API_KEY` pelas credenciais da OpenAI e o modelo. Para **Gemini**, o
+> formato de tool é diferente (function declarations), mas o handler que chama `kb_index` é idêntico.
+
 ## Por que BM25 e não embeddings?
 
 Para ~60 documentos curados, BM25 entrega ranking excelente com **zero dependência de
