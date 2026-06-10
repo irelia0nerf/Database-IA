@@ -69,13 +69,51 @@ python3 tools/kb-mcp/server.py
 ```
 
 ### B) MCP remoto (HTTP) para APIs hospedadas
-APIs que aceitam um **URL de MCP server** (OpenAI remote MCP, Gemini, Claude `mcp_servers`)
-precisam de Streamable HTTP. O mesmo servidor serve isso via env var:
+APIs que aceitam um **URL de MCP server** (OpenAI remote MCP, Gemini, Claude `mcp_servers`,
+**conector do Grok**) precisam de Streamable HTTP. O mesmo servidor serve isso via env var:
 
 ```bash
-KB_TRANSPORT=streamable-http KB_HOST=0.0.0.0 KB_PORT=8000 python3 tools/kb-mcp/server.py
+KB_TRANSPORT=streamable-http KB_HOST=0.0.0.0 KB_PORT=8000 \
+  KB_AUTH_TOKEN=$(openssl rand -hex 24) python3 tools/kb-mcp/server.py
 # endpoint MCP: http://<host>:8000/mcp
 ```
+
+**Autenticação:** se `KB_AUTH_TOKEN` estiver definido, toda requisição exige
+`Authorization: Bearer <token>` (responde 401 sem ele). Sem o token, o servidor sobe
+**aberto** e avisa no stderr — nunca exponha publicamente assim.
+
+#### Deploy no Google Cloud Run (URL pública para o Grok)
+
+O Cloud Run gera uma URL HTTPS pública automaticamente — não é preciso ter domínio próprio.
+O [`Dockerfile`](../../Dockerfile) na raiz empacota a base inteira + o servidor.
+
+```bash
+# 1. gere um token e (recomendado) guarde no Secret Manager
+export KB_TOKEN=$(openssl rand -hex 24)
+
+# 2. deploy (Cloud Build a partir da raiz; Cloud Run injeta PORT)
+gcloud run deploy foundlab-kb-mcp \
+  --source . \
+  --region southamerica-east1 \
+  --allow-unauthenticated \
+  --set-env-vars KB_TRANSPORT=streamable-http,KB_AUTH_TOKEN=$KB_TOKEN
+
+# 3. pegue a URL pública
+gcloud run services describe foundlab-kb-mcp \
+  --region southamerica-east1 --format='value(status.url)'
+```
+
+No conector do Grok (grok.com → New Connector → Custom):
+- **URL do servidor:** `https://<url-do-cloud-run>/mcp`
+- **Auth:** API Key / Bearer → use o valor de `KB_TOKEN`
+
+> `--allow-unauthenticated` libera o IAM do Cloud Run (para o Grok alcançar a URL); a
+> proteção real é o `KB_AUTH_TOKEN` na aplicação. Em produção, injete o token via Secret
+> Manager (`--set-secrets KB_AUTH_TOKEN=kb-token:latest`) em vez de `--set-env-vars`.
+>
+> ⚠️ **Egresso de dados:** esta base é marcada *uso interno* no `CLAUDE.md`. Publicá-la num
+> Cloud Run que o Grok consome envia o conteúdo para a xAI. Decisão consciente — confirme o
+> escopo (ex.: subir só um subconjunto) antes de expor dados sensíveis.
 
 ### C) Sem MCP — function calling nativo
 Para qualquer LLM com tool/function calling, pule o MCP e chame o engine direto. Ele é
