@@ -125,10 +125,16 @@ Estes gaps fecham antes de qualquer dado real de cliente. Não são roadmap.
 
 ## Rules Importadas
 
-@.claude/rules/code-style.md
-@.claude/rules/testing.md
-@.claude/rules/security.md
-@.claude/rules/git-workflow.md
+Os standards de engenharia vivem em [`Core/Standards/`](../Standards/):
+
+- [code-style.md](../Standards/code-style.md)
+- [testing.md](../Standards/testing.md)
+- [security.md](../Standards/security.md)
+- [git-workflow.md](../Standards/git-workflow.md)
+- [prompt-engineering.md](../Standards/prompt-engineering.md)
+
+> Para uso com Claude Dev/Code, o mapeamento de `@.claude/rules/...` está documentado em
+> [`.claude/rules.md`](../../.claude/rules.md).
 
 ---
 
